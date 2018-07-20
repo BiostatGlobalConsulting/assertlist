@@ -22,11 +22,7 @@
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
 *
-* This program will benefit from some re-organization in the code but 
-* it is currently working according to our wishes, so the re-organization
-* will need to wait...
 
-capture program drop assertlist
 program assertlist
 	version 11.1
 	syntax anything(name=assertion equalok everything) [, KEEP(varlist) ///
