@@ -1,5 +1,6 @@
 *! assertlist_cleanup version 1.03 - Biostat Global Consulting - 2018-06-06
-* This program can be used after assertlist has been ran to cleanup the column
+
+* This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
 
 *******************************************************************************
@@ -12,7 +13,10 @@
 * 2018-05-10	1.02	MK Trimner		Corrected typo
 * 2018-06-06	1.03	MK Trimner		Added code to strip .xls or .xlsx extension
 *******************************************************************************
-capture program drop assertlist_cleanup
+*
+* Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
+*
+
 program define assertlist_cleanup
 
 	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT ]
