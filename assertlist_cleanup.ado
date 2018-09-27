@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.03 - Biostat Global Consulting - 2018-06-06
+*! assertlist_cleanup version 1.04 - Biostat Global Consulting - 2018-09-13
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -12,6 +12,10 @@
 * 2018-04-10	1.01	MK Trimner		Added sorting option and broke into programs
 * 2018-05-10	1.02	MK Trimner		Corrected typo
 * 2018-06-06	1.03	MK Trimner		Added code to strip .xls or .xlsx extension
+* 2018-09-13	1.04	MK Trimner		Added code to destring id variables when possible
+*										Had to add code to create a temp string variable as well
+*										in rename program
+* 2018-09-27	1.05	MK Trimner		Added code to string .xls or .xlsx extension from NAME
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -24,12 +28,14 @@ program define assertlist_cleanup
 
 	noi di as text "Confirming excel file exists..."
 	
-	* If the user specified a .xls or .xlsx extension, strip it off here
-	if lower(substr("`excel'",-4,.)) == ".xls"  ///
-		local excel `=substr("`excel'",1,length("`excel'")-4)'
-	if lower(substr("`excel'",-5,.)) == ".xlsx" ///
-		local excel `=substr("`excel'",1,length("`excel'")-5)'
-				
+	* If the user specified a .xls or .xlsx extension in NAME or EXCEL, strip it off here
+	foreach v in excel name {
+		if lower(substr("``v''",-4,.)) == ".xls"  ///
+			local `v' `=substr("``v''",1,length("``v''")-4)'
+		if lower(substr("``v''",-5,.)) == ".xlsx" ///
+			local `v' `=substr("``v''",1,length("``v''")-5)'
+	}
+
 	* Make sure file provided exists
 	capture confirm file "`excel'.xlsx"
 	if _rc!=0 {
@@ -178,7 +184,12 @@ program define assertlist_cleanup_idsort
 			
 			local idw 2
 			*local t 1
+			
 			foreach v in `elist' {
+				
+				* Destring the variable if possible
+				destring `v', replace
+				
 				if "`v'"=="`=word("`elist'",1)'" {
 					replace _al_id = _al_id + `"""' + " if `v' == " in `n' 
 				}
@@ -275,6 +286,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 		
 		* Grab the max length for formatting
 		tempvar `v'_l
+		if substr("`: type `v''",1,3) != "str" tostring(`v'), replace
 		gen ``v'_l'=length(`v')
 		
 		qui summarize ``v'_l'
