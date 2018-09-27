@@ -1,4 +1,4 @@
-*! assertlist version 2.03 - Mary Kay Trimner & Dale Rhoda - 2018-04-10
+*! assertlist version 2.05 - Mary Kay Trimner & Dale Rhoda - 2018-09-27
 *******************************************************************************
 * Change log
 * 				Updated
@@ -18,6 +18,10 @@
 *											Checked var type for CHECKLIST FIX variables
 *											if they were in date format, 
 *											change corresponding var_# format to match.
+* 2018-09-13	2.04	MK Trimner			Changed var type to show full type 
+*											Adjusted local in replace statement to
+*											pull first 3 characters from the full var type
+* 2018-09-27	2.05	MK Trimner			Added sheet name to Summary tab note
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -76,7 +80,7 @@ program assertlist
 		* to show how many passed, failed and were included in assertion
 		if "`excel'"!="" {
 			noi write_xl_summary, assertion(`assertion') excel(`excel') ///
-			hold(`hold') summaryexists(`summaryexists')
+			hold(`hold') summaryexists(`summaryexists') sheet(`sheet')
 		}
 		
 		* If there were lines that failed the assertion, complete the below steps
@@ -400,7 +404,8 @@ end
 capture program drop write_xl_summary
 program define write_xl_summary
 
-	syntax, ASSERTION(string asis) EXCEL(string asis) HOLD(string asis) SUMMARYexists(int)
+	syntax, ASSERTION(string asis) EXCEL(string asis) HOLD(string asis) ///	
+			SUMMARYexists(int) SHEET(string asis)
 
 	qui {
 		* Write Summary tab...
@@ -441,20 +446,20 @@ program define write_xl_summary
 		else {
 			if `num_fail' == 1 {
 				noi di as text ///
-				"`num_fail' observation failed assertion; see spreadsheet or dataset for more details."
+				"`num_fail' observation failed assertion; see tab `sheet' for more details."
 				
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
-				("`num_fail' observation failed assertion; see spreadsheet or dataset for more details.")
+				("`num_fail' observation failed assertion; see tab `sheet' for more details.")
 			}
 			
 			if `num_fail'  > 1 {
 				noi di as text ///
-				"`num_fail' observations failed assertion; see spreadsheet or dataset for more details."
+				"`num_fail' observations failed assertion; see tab `sheet' for more details."
 				
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
-				("`num_fail' observations failed assertion; see spreadsheet or dataset for more details.")
+				("`num_fail' observations failed assertion; see tab `sheet' for more details.")
 			}
 		}		
 		
@@ -533,7 +538,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		
 		* Save the var types to be used later on
 		foreach v in `idlist' `checklist' {
-			local `v' `=substr("`: type `v''",1,3)'
+			local `v' `: type `v'' //`=substr("`: type `v''",1,3)'
 		}	
 
 		* Create a var that counts how many vars need checked
@@ -695,18 +700,18 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 			local b `=`=wordcount("`idlist'")' + 5'
 																
 			forvalues i = 1/`num' {
-			
+				
 				* Find the Excel column based on the list local 
 				* created above
 				local L "`=word("`exlist'",`=`b'+3')'"
 				local L2 "`=word("`exlist'",`=`b'+4')'"
 				local L3 "`=word("`exlist'",`b')'"
-				local g `=_al_var_`i'[`n']'
+				local g `=substr("``=_al_var_`i'[`n']''",1,3)'
 					
 				* This will use the var type stored at the 
 				* beginning of the program
 				* Each is named after the var
-				if "``g''" == "str" {							
+				if "`g'" == "str" {							
 						putexcel set "`excel'.xlsx", modify sheet("`sheet'")			
 						putexcel `L2'`k' = formula(=if(`L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ","""",`L'`k',"""",`_al_id_`n'')))
 						
@@ -722,7 +727,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 			}
 			local ++k
 		}
-		
+	
 		* Format the spreadsheet
 		* noi di "Formatting FIX tab..."
 		* Identify which columns will be highighted

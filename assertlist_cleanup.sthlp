@@ -12,8 +12,8 @@
 {marker syntax}{...}
 {title:Syntax}
 {p 8 16 2}
-{opt assertlist_cleanup}{cmd:,}   {it:{view assertlist_cleanup.sthlp##excel:EXCEL}}(string) [ {it:{view assertlist_cleanup.sthlp##name:NAME}}(string)
-{it:{view assertlist_cleanup.sthlp##idsort:IDSORT}} ]
+{opt assertlist_cleanup}{cmd:,}   {it:{help assertlist_cleanup##excel:EXCEL}}(string) [ {it:{help assertlist_cleanup##name:NAME}}(string)
+{it:{help assertlist_cleanup##idsort:IDSORT}} ]
 {p_end}
 
 {synoptline}
@@ -23,7 +23,7 @@
 {marker description}{...}
 {title:Description}
 
-{pstd} {cmd:assertlist_cleanup} is a wrapper for the {help assertlist} command. {cmd:assertlist} lists observations that contradict an 
+{pstd} {cmd:assertlist_cleanup} is a companion for the {help assertlist} command. {cmd:assertlist} lists observations that contradict an 
 	assert command and provide details around WHICH rows failed the assertion, and HOW. {p_end}
 
 {pstd} {cmd: assertlist_cleanup} takes the {cmd:assertlist} excel output and makes the column names 
@@ -40,24 +40,23 @@
 {marker excel}
 {pstd} {bf: EXCEL} - Name of the {help assertlist##excel:EXCEL} workbook that holds the {cmd:assertlist} output. {p_end}
 
-{pmore} {it:*See {view assertlist_cleanup.sthlp##note:NOTE}  for additional information regarding {cmd:EXCEL}.}
+{pmore} {it:*See {help assertlist_cleanup##note:NOTE} for additional information regarding {cmd:EXCEL}.}
 
 {title:Optional Input} 
 {marker name}
-{pstd} {bf:NAME} - New name for excel file. 
+{pstd} {bf:NAME} - New name for Excel file. 
 
-{pmore}	This options preserves the original {cmd:assertlist} excel file and makes all changes to a copied version saved as {cmd:NAME}.{p_end}	 
-{pmore} {it:*See {view assertlist_cleanup.sthlp##note:NOTE} for additional information regarding {cmd:NAME}.} {p_end}
+{pmore}	This options preserves the original {cmd:assertlist} Excel file and makes all changes to a copied version saved as {cmd:NAME}.{p_end}	 
+{pmore} {it:*See {help assertlist_cleanup##note:NOTE} for additional information regarding {cmd:NAME}.} {p_end}
 {marker note}	   
 {pstd} {bf:NOTE: The input for {it:EXCEL} and {it:NAME} can include just the file name (goes to current folder) or a folder} 
-        {bf: path and file name. Do {it:NOT} include double quotes around the path and filename for output excel file.}{p_end}
+        {bf: path and file name. Do {it:NOT} include double quotes around the path and filename for output Excel file.}{p_end}
 
 {marker idsort}
 {pstd} {bf:IDSORT} - Sorts each tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
 
 {title: Column Name Change Details}
-{p 150 0 0}({it:{back:back to previous section}}) {p_end}
-{pstd} Below lists out all of the column name changes completed by {cmd:ASSERTLIST_CLEANUP}. All other column names remain the same. {p_end}
+{pstd} The list below enumerates the column name changes that are completed by {cmd:ASSERTLIST_CLEANUP}. All other column names remain the same. {p_end}
 
 {dlgtab:Assertlist_Summary Tab}
 
@@ -107,11 +106,18 @@
 {title:Authors}
 {p}
 
-Dale Rhoda & Mary Kay Trimner, Biostat Global Consulting
+Mary Kay Trimner & Dale Rhoda, Biostat Global Consulting
 
 Email {browse "mailto:Dale.Rhoda@biostatglobal.com":Dale.Rhoda@biostatglobal.com}
 
+Biostat Global Consulting has also created two additional programs that go along with {cmd:assertlist_cleanup} : 
+{pstd} {help assertlist} : Initial program that must be run prior to running {cmd:assertlist_cleanup}. {p_end}
+{pmore} {cmd:Assertlist}  List observations that contradict an assert command. {p_end}
+
+{pstd} {help assertlist_replace} - To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}. {p_end}
+{pmore} Pulls replace statements with corrected values from {cmd:assertlist}/{cmd:assertlist_cleanup} spreadsheet and puts them in a .do file. {p_end}
+
 {title:See Also}
+{help assert}
 {help assertlist}
-
-
+{help assertlist_replace}
