@@ -1,4 +1,4 @@
-*! assertlist version 2.05 - Mary Kay Trimner & Dale Rhoda - 2018-09-27
+*! assertlist version 2.06 - Mary Kay Trimner & Dale Rhoda - 2018-10-04
 *******************************************************************************
 * Change log
 * 				Updated
@@ -22,6 +22,7 @@
 *											Adjusted local in replace statement to
 *											pull first 3 characters from the full var type
 * 2018-09-27	2.05	MK Trimner			Added sheet name to Summary tab note
+* 2018-10-04	2.06	MK Trimner			Changed the str## in post file to reflect max length of 2045
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -421,10 +422,10 @@ program define write_xl_summary
 		* Create a log file that will be used to capture how many passed 
 		* and failed each assertion
 		postfile `handle' _al_check_sequence ///
-			str135 _al_assertion_syntax ///
-			str135 _al_tag                   ///
+			str2045 _al_assertion_syntax ///
+			str2045 _al_tag                   ///
 			_al_total _al_number_passed _al_number_failed ///
-			str150 _al_note1 using "`results'"
+			str2045 _al_note1 using "`results'"
 		
 		* Count how many passed and failed the logical statement
 		* noi di as text "Counting # that passed & failed the assertion..."
