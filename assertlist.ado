@@ -23,6 +23,7 @@
 *											pull first 3 characters from the full var type
 * 2018-09-27	2.05	MK Trimner			Added sheet name to Summary tab note
 * 2018-10-04	2.06	MK Trimner			Changed the str## in post file to reflect max length of 2045
+*											Corrected typos
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -56,7 +57,7 @@ program assertlist
 		capture gen _al_asrt = `assertion' 
 		
 		* Create variables to hold user input data: 
-		* Assertion syntax and Tag (Blank if not specificed) 
+		* Assertion syntax and Tag (Blank if not specified) 
 		gen _al_assertion_syntax = `"`assertion'"'
 		gen _al_tag = "`tag'"
 			
@@ -265,7 +266,7 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			}
 		}
 		
-		* Check to see if IDLIST provided uniquely identifies respondant
+		* Check to see if IDLIST provided uniquely identifies respondent
 		* If it does not, send warning to screen
 		if "`idlist'" != "" {
 			tempvar unique
@@ -274,7 +275,7 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			
 			if `=r(max)' > 1 noi di as text "Assertlist warning: Variables provided in IDLIST do " ///
 			"not uniquely identify each row. The program will continue, but " ///
-			"be aware that this could create undesireable consequences when replacing " ///
+			"be aware that this could create undesirable consequences when replacing " ///
 			"the values and we advise that you make the IDLIST unique."
 		}
 	
@@ -410,7 +411,7 @@ program define write_xl_summary
 
 	qui {
 		* Write Summary tab...
-		* noi di "Writting Summary Tab..."
+		* noi di "Writing Summary Tab..."
 			
 		* Bring in file
 		use "`hold'", clear	
@@ -731,7 +732,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 	
 		* Format the spreadsheet
 		* noi di "Formatting FIX tab..."
-		* Identify which columns will be highighted
+		* Identify which columns will be highlighted
 		local hi `=`=wordcount("`idlist'")' + 8'
 		
 		* Format Fix Sheet
