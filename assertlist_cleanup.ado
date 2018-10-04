@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.04 - Biostat Global Consulting - 2018-09-13
+*! assertlist_cleanup version 1.06 - Biostat Global Consulting - 2018-10-04
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -16,6 +16,10 @@
 *										Had to add code to create a temp string variable as well
 *										in rename program
 * 2018-09-27	1.05	MK Trimner		Added code to string .xls or .xlsx extension from NAME
+* 2018-10-04	1.06	MK Trimner		Added a min of 30 for column width to prevent errors with 
+*										column widths that are too long
+* 										Also added txtwrap for entire sheet after all other formatting
+*										is completed.
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -75,6 +79,9 @@ program define assertlist_cleanup
 			noi di as text "Importing excel sheet: `sheet'..."
 			import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
 			
+			* Create a local with the cell range for sheet
+			local range `=r(range_`b')'
+				
 			* Set local for max number of vars checked
 			local max 0
 			
@@ -105,10 +112,13 @@ program define assertlist_cleanup
 				assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') max(`max') var(`v')
 				
 				* Format the tabs
-				assertlist_cleanup_format, excel(`excel') sheet(`sheet') n(`n') m1(`m`n'1') m2(`m`n'2')
+				assertlist_cleanup_format, excel(`excel') sheet(`sheet') n(`n') m1(`m`n'1') m2(`m`n'2') 
 				
 				local ++n
 			}
+			
+		* Wrap text
+		putexcel (`range'), txtwrap
 		}
 	}
 
@@ -362,13 +372,10 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int)
 		mata: b.set_mode("open")
 		
 		mata: b.set_sheet("`sheet'")
-
-		mata: b.set_column_width(`n',`n',`=`m1'+3')
 		
-		if `m2'>`m1' {
-			mata: b.set_column_width(`n',`n',`=`m1'+ 11')
-		}
-		
+		if `m2'>`m1'	mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+ 11')')
+		else 			mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+3')')
+				
 		mata b.close_book()		
 	}
 end
