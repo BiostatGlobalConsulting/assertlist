@@ -46,7 +46,7 @@
 {marker name}
 {pstd} {bf:NAME} - New name for Excel file. 
 
-{pmore}	This options preserves the original {cmd:assertlist} Excel file and makes all changes to a copied version saved as {cmd:NAME}.{p_end}	 
+{pmore}	This option preserves the original {cmd:assertlist} Excel file and makes all changes to a copied version saved as {cmd:NAME}.{p_end}	 
 {pmore} {it:*See {help assertlist_cleanup##note:NOTE} for additional information regarding {cmd:NAME}.} {p_end}
 {marker note}	   
 {pstd} {bf:NOTE: The input for {it:EXCEL} and {it:NAME} can include just the file name (goes to current folder) or a folder} 

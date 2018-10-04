@@ -52,7 +52,7 @@
 
 {pstd} The command options a) specify variables whose contents should be 
        listed, b) add helpful tags to remind you what assertion was contradicted,
-	   c) direct output to an Excel spreadshet, and d) insert additional 
+	   c) direct output to an Excel spreadsheet, and d) insert additional 
 	   columns in the spreadsheet to facilitate fixing unexpected values.
 	   {p_end}
 	   
@@ -124,7 +124,7 @@
 {pmore2} 1. {bf:_al_sequence_number}:	{it: Sequential counter for assertions whose output was directed to this {cmd:EXCEL} file.} {p_end}
 {pmore2} 2. {bf:_al_assertion_that_failed} {it: Contains {cmd:exp} syntax.} {p_end}
 {pmore2} 3. {bf:_al_tag}:		{it:String provided in {help assertlist##tag:TAG}, if any.} {p_end}
-{pmore2} 4. {bf:_al_total}: 		{it: Total number of observations {cmd:exp} was evaluted on.  (Depends on [if] and [in].)} {p_end}
+{pmore2} 4. {bf:_al_total}: 		{it: Total number of observations {cmd:exp} was evaluated on.  (Depends on [if] and [in].)} {p_end}
 {pmore2} 5. {bf:_al_number_passed}:	{it: Number of observations for which {cmd:exp} was TRUE.} {p_end}
 {pmore2} 6. {bf:_al_number_failed}:	{it: Number of observations for which {cmd:exp} was FALSE.} {p_end}
 {pmore2} 7. {bf:_al_note}		{it: Note regarding results.} {p_end}
@@ -221,12 +221,12 @@
 			the {cmd:assertlist} program.{p_end}
 {pmore2} 2. {help assertlist##exp:exp} is nonsensical and cannot be 
             evaluated or does not resolve to only TRUE or FALSE. {p_end}
-{pmore2} 3. {help assertlist##fix:FIX} option specifed but 
+{pmore2} 3. {help assertlist##fix:FIX} option specified but 
             {help assertlist##excel:EXCEL}, 
 			{help assertlist##sheet:SHEET}, 
 			{help assertlist##idlist:IDlist} and/or 
 			{help assertlist##checklist:CHECKlist} are not provided. {p_end}
-{pmore2} 4. {help assertlist##excel:EXCEL} option specifed but 
+{pmore2} 4. {help assertlist##excel:EXCEL} option specified but 
             {help assertlist##sheet:SHEET} is not provided. {p_end}
 {pmore2} 5. User specifies a {help assertlist##sheet:SHEET} named 
             "Assertlist_Summary". {p_end}
