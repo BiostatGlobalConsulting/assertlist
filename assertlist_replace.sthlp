@@ -28,7 +28,7 @@
 {pstd} {cmd:assertlist_replace} is a companion for the {help assertlist} or {help assertlist_cleanup} commands. {cmd:assertlist} lists observations that contradict an 
 	assert command and provides details around WHICH rows failed the assertion, and HOW. {cmd:assertlist_cleanup} takes the excel output from {cmd:assertlist} and adds user friendly column titles and formatting.{p_end}
 
-{pstd} {cmd: assertlist_replace} is to be used after the user has reviewed each failed assertion and added the approriate values to the {it:replace} columns in the 
+{pstd} {cmd: assertlist_replace} is to be used after the user has reviewed each failed assertion and added the appropriate values to the {it:replace} columns in the 
 	{cmd:assertlist} or {cmd: assertlist_cleanup} excel file. This program then puts each populated replace statement from all {help assertlist##fix:FIX} tabs 
 	directly into a .do file. Comments are added to show the sheetname, failed assertion and tag for each replace statement.
 	{p_end}
@@ -56,7 +56,7 @@
 (You do not need to include the characters .do in the {cmd:DOfile} option.){p_end}
 {pmore} {it:*See {help assertlist_replace##note:NOTE} for additional information regarding {cmd:Dofile}.} {p_end}
 {marker date}
-{pstd} {bf:DATE} - User can optionally specify the date when the review occured, and this program will include it in a comment at the top of the .do file for documentation purposes. {p_end}
+{pstd} {bf:DATE} - User can optionally specify the date when the review occurred, and this program will include it in a comment at the top of the .do file for documentation purposes. {p_end}
 {marker reviewer}
 {pstd} {bf:REVIEWER} - Name of person(s) who reviewed failed assertions and added replace values to spreadsheet. Included at the top of the .do file for documentation purposes. {p_end}
 {marker comments}
