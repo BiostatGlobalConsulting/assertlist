@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.06 - Biostat Global Consulting - 2018-10-04
+*! assertlist_cleanup version 1.07 - Biostat Global Consulting - 2018-10-24
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -20,6 +20,7 @@
 *										column widths that are too long
 * 										Also added txtwrap for entire sheet after all other formatting
 *										is completed.
+* 2018-10-24	1.07	Dale Rhoda		Use numtobase26() to pull the Excel column name we need
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -164,10 +165,7 @@ program define assertlist_cleanup_idsort
 		* Export the new sorted data
 		export excel using "`excel'.xlsx", sheet("`sheet'") sheetmodify ///
 					firstrow(var) nolabel datestring("%tdDD/Mon/CCYY")
-		
-		* First run the program that holds the excel list
-		excel_fix_column
-		
+				
 		noi di as text "Replace concatenate formulas to reflect new row order..."
 		* Create the concatenate formulas
 		
@@ -196,7 +194,9 @@ program define assertlist_cleanup_idsort
 			*local t 1
 			
 			foreach v in `elist' {
-				
+			
+				mata: st_local("xlcolname", invtokens(numtobase26(`=`idw'+1')))
+		
 				* Destring the variable if possible
 				destring `v', replace
 				
@@ -211,12 +211,12 @@ program define assertlist_cleanup_idsort
 				if substr("`: type `v''",1,3) == "str" {
 					replace _al_id=_al_id + `"""' + "," + `"""' ///
 						+ `"""' + `"""' + `"""' + "," + ///
-						"`=word("`exlist'",`=`idw'+1')'`k'" + ///
+						"`xlcolname'`k'" + ///
 						"," + `"""' + `"""' + `"""' + `"""' in `n'
 				}
 				else {  
 					replace _al_id=_al_id + `"""' + "," + ///
-						"`=word("`exlist'",`=`idw'+1')'`k'" in `n'					  
+						"`xlcolname'`k'" in `n'					  
 				}
 					
 				* If v is not the last word in IDLIST add extra ""
@@ -253,9 +253,11 @@ program define assertlist_cleanup_idsort
 			
 				* Find the Excel column based on the list local 
 				* created above
-				local L "`=word("`exlist'",`=`b'+3')'"
-				local L2 "`=word("`exlist'",`=`b'+4')'"
-				local L3 "`=word("`exlist'",`b')'"
+				
+				mata: st_local("L" , invtokens(numtobase26(`=`b'+3')))
+				mata: st_local("L2", invtokens(numtobase26(`=`b'+4')))
+				mata: st_local("L3", invtokens(numtobase26(`b')))
+				
 				local g `=_al_var_type_`i'[`n']'
 					
 				* This will use the var type stored at the 
@@ -337,14 +339,12 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 		
 		* also create local with max of variable name
 		local m`n'2 =length("``v''")
-		
-		* Run the program to grab the column letter
-		excel_fix_column
-					
+							
 		* Put the new variable name into excel file
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
-		putexcel `=word("`exlist'",``v'n')'1 = "``v''", txtwrap
-	
+
+		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
+		putexcel `xlcolname'1 = "``v''", txtwrap
 	
 		* Pass through the locals
 		foreach v in m`n'1 m`n'2 {
@@ -381,23 +381,3 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int)
 end
 
 
-********************************************************************************
-********************************************************************************
-******							Excel Fix Column 						   *****
-********************************************************************************
-********************************************************************************
-
-capture program drop excel_fix_column
-program define excel_fix_column
-
-	* Create local that will be used to identify which Excel cells are
-	* to be populated with concatenate function 
-	qui {	
-		mata: (1..250)
-		mata: numtobase26((1..250))
-		
-		mata: st_local("exlist", invtokens(numtobase26(1..250)))
-		
-		c_local exlist `exlist'	
-	}
-end
