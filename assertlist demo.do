@@ -1,6 +1,6 @@
-* Examples of using assertlist on Stata's famous auto dataset
+* Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
 * Dale Rhoda
-* November 29, 2017
+* October 16, 2018
 
 sysuse auto, clear
 
@@ -68,11 +68,100 @@ assertlist rep78 < 5 if !missing(rep78), excel(al_xl_test.xlsx) sheet(several_te
 assertlist headroom < 5, excel(al_xl_test.xlsx) sheet(several_tests) fix idlist(make) checklist(headroom) tag(Head room seems very high)
 assertlist trunk < 22, excel(al_xl_test.xlsx) sheet(several_tests) fix idlist(make) checklist(trunk) tag(Trunk space seems very high)
 
-* Note that if you sort the output by 'make' (after doing the find-and-replace 
-* trick) that the VW Diesel appears twice in the list; it has extreme values 
+* Note that if you sort the output by 'make',
+* the VW Diesel appears twice in the list; it has extreme values 
 * for two of the variables we checked.  So if we went back to VW to 
 * check the data, we would ask them about both variables.
 
 * It can be quite powerful to sort the dataset and find ALL of the potential
 * problems with a record or observation BEFORE going back to the source to
 * check the data.
+
+********************************************************************************
+
+* Once you have completed all potential assertions and BEFORE
+* going back to the source to check the data, you can run the 
+* assertlist_cleanup program to format columns and insert user friendly column headers.
+
+* The first time through we will specify the required EXCEL option
+* and optional NAME to preserve the original spreadsheet.
+
+assertlist_cleanup, excel(al_xl_test.xlsx) name(al_xl_test_clean.xlsx)
+
+* Next we will also specify the optional IDSORT option so that all sheets are
+* sorted by the IDLIST provided in the original assertion. 
+* This automatically does the sort by `make' mentioned above.
+
+assertlist_cleanup, excel(al_xl_test.xlsx) name(al_xl_test_clean_and_sorted.xlsx) idsort
+
+* Lastly we will only specify the required EXCEL option.
+* This will overwrite the original EXCEL file with the cleaned up sheets.
+* But for this example, let`s make a copy of the original assertlist EXCEL file 
+* so we can show how assertlist_replace can be used on either EXCEL files. 
+
+copy "al_xl_test.xlsx" "al_xl_test_2.xlsx", replace
+
+assertlist_cleanup, excel(al_xl_test_2.xlsx)
+
+********************************************************************************
+* To show an example of assertlist_replace we will need to add some values to 
+* the assertlist out spreadsheets in the replace  
+* NOTE: These values are completely random and not all lines will contain 
+* corrected values.
+foreach v in al_xl_test al_xl_test_clean {
+	
+	putexcel set "`v'.xlsx", modify sheet("test3_fix")	
+	putexcel I2 = 4, nformat(#)
+	putexcel I3 = 2
+	putexcel I4 = 3
+	putexcel I5 = 4
+	putexcel I6 = 4
+	putexcel close
+	
+	putexcel set "`v'.xlsx", modify sheet("test6_fix")
+	putexcel I2 = 3
+	putexcel N3 = 190
+	putexcel close
+	
+	putexcel set "`v'.xlsx", modify sheet("several_tests_fix")
+	putexcel I2= 15900
+	putexcel I4 = 2
+	putexcel I5 = 3
+	putexcel I6 = 1
+	putexcel I7 = 4
+	putexcel I8 = 4
+	putexcel I9 = 2
+	putexcel I10 = 2
+	putexcel I11 = 1
+	putexcel I12 = 1
+	putexcel I13 = 3 
+	putexcel I14 = 4
+	putexcel close
+
+}
+
+* In the first example we will only provide the required EXCEL option. All other
+* options will be set to the default value or not populated
+
+assertlist_replace, excel(al_xl_test)
+
+* Add a name for DOFILE
+
+assertlist_replace, excel(al_xl_test) dofile(al_xl_text_replace_commands)
+
+* The user has the ability to add details to help with documentation.
+* Next we will add the DATE reviewed and name of REVIEWER, 
+* original dataset name (DATASET1) and name for new dataset (DATASET2)
+* This example also shows that the command can be used with both the original 
+* assertlist and assertlist_cleanup excel files. 
+
+assertlist_replace, excel(al_xl_test_clean) dofile(al_xl_text_clean_replace_commands) ///
+	reviewer(NAME HERE) date(10-16-2018) dataset1(auto) dataset2(auto_replace)
+
+* We can also add a comment at the top of the do file that provides additional 
+* information for documentation purposes.
+
+assertlist_replace, excel(al_xl_test_clean) dofile(al_xl_text_clean_replace_commands_with_comment) ///
+	reviewer(NAME HERE) date(10-16-2018) dataset1(auto) dataset2(auto_replace) ///
+	comments(These values were selected at random for example purposes and the changes should not be implemented in the auto dataset.)
+
