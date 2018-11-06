@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.07 - Biostat Global Consulting - 2018-10-24
+*! assertlist_cleanup version 1.08 - Biostat Global Consulting - 2018-10-24
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -20,7 +20,8 @@
 *										column widths that are too long
 * 										Also added txtwrap for entire sheet after all other formatting
 *										is completed.
-* 2018-10-24	1.07	Dale Rhoda		Use numtobase26() to pull the Excel column name we need
+* 2018-10-10	1.07	MK Trimner		Corrected message
+* 2018-10-24	1.08	Dale Rhoda		Use numtobase26() to pull the Excel column name we need
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -106,7 +107,7 @@ program define assertlist_cleanup
 			* Remove _al from var names
 			local n 1
 
-			noi di as text "Renaming variables and formatting column..."
+			noi di as text "Renaming variables and formatting columns..."
 			foreach v of varlist * {
 				
 				* Rename all the variables

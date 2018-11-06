@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.00 - Biostat Global Consulting - 2018-09-27
+*! assertlist_replace version 1.01 - Biostat Global Consulting - 2018-10-17
 
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
@@ -9,6 +9,16 @@
 *				version
 * Date 			number 	Name			What Changed
 * 2018-09-27	1.00	MK Trimner		Original Version
+* 2018-10-17	1.01 	MK Trimner		Added code to only put output if replace
+*										statements in spreadsheet...else, error is
+*										sent to screen.
+*										Moved the renaming of variables due to var
+*										label to a local and outside of varlist loop
+*										This prevents an error if multiple variables are 
+*										used in CHECKLIST and renamed earlier
+*										Also changed the check for Current value
+*										to include more words in strpos so that replace
+*										statement is not included
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -79,20 +89,24 @@ program define assertlist_replace
 		}
 		
 		postclose mkt
-			
-		* Identify duplicates and conflicts
-		assertlist_replace_conflict
-			
-		* Open .DO file and add opening comments
-		assertlist_replace_open, excel(`excel') dofile(`dofile') comments(`comments') ///
-			date(`date') reviewer(`reviewer') dataset1(`dataset1') dataset2(`dataset2')
-	
-		* Put the replace statements in .DO file
-		assertlist_replace_commands, num(`c')
 		
-		* Add final save to .DO file
-		file write replacement " save, replace" _n
-		capture file close replacement
+		* If there are lines left move on to the next steps
+		if `=_N' > 0 {
+				* Identify duplicates and conflicts
+				assertlist_replace_conflict
+				
+			* Open .DO file and add opening comments
+			assertlist_replace_open, excel(`excel') dofile(`dofile') comments(`comments') ///
+				date(`date') reviewer(`reviewer') dataset1(`dataset1') dataset2(`dataset2')
+		
+			* Put the replace statements in .DO file
+			assertlist_replace_commands, num(`c')
+			
+			* Add final save to .DO file
+			file write replacement " save, replace" _n
+			capture file close replacement
+		}
+		else noi di as error "No replace statements in spreadsheet."
 	}
 	
 end
@@ -115,25 +129,26 @@ program assertlist_replace_cleanup
 		local 2 1
 		local 3 1
 		
-		* Create local with name of variables to drop
+		* Create local with name of variables to drop and rename
 		local droplist
+		local renamelist
 		
 		foreach v of varlist * {
 			if strpos("`: var label `v''","Replace") > 0 {
-				rename `v' _al_replace_var_`1'
+				local renamelist `renamelist' rename `v' _al_replace_var_`1'
 				local ++1
 			}
 			if strpos("`: var label `v''","Name of Variable") > 0 {
-				rename `v' _al_var_`2'
+				local renamelist `renamelist' rename `v' _al_var_`2' 
 				local ++2
 			}
 				
 			if strpos("`: var label `v''", "Blank Space") > 0 {
-				rename `v' _al_correct_var_`3'
+				local renamelist `renamelist' rename `v' _al_correct_var_`3' 
 				local ++3
 			}
 			
-			if strpos("`: var label `v''", "Current") > 0 {
+			if strpos("`: var label `v''", "Current Value of ") > 0 {
 				local droplist `droplist' `v'
 			}
 			
@@ -142,7 +157,14 @@ program assertlist_replace_cleanup
 			if "`v'"=="AssertionCompletedSequenceNum" rename `v' _al_check_sequence
 			if "`v'"=="NumberofVariablesCheckedinA" rename `v' _al_num_var_checked
 		}
-		
+				
+		* split up the rename local to execute each command
+		local c `=wordcount("`renamelist'")'
+		tokenize `renamelist'
+		forvalues i = 1(3)`c' {
+			``i'' ``=`i'+1'' ``=`i'+2''
+		}
+			
 		* Drop variables not needed
 		drop `droplist' *type* 
 		
