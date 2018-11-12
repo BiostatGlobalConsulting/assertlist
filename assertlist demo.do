@@ -88,6 +88,7 @@ assertlist trunk < 22, excel(al_xl_test.xlsx) sheet(several_tests) fix idlist(ma
 
 assertlist_cleanup, excel(al_xl_test.xlsx) name(al_xl_test_clean.xlsx)
 
+
 * Next we will also specify the optional IDSORT option so that all sheets are
 * sorted by the IDLIST provided in the original assertion. 
 * This automatically does the sort by `make' mentioned above.
@@ -102,12 +103,20 @@ assertlist_cleanup, excel(al_xl_test.xlsx) name(al_xl_test_clean_and_sorted.xlsx
 copy "al_xl_test.xlsx" "al_xl_test_2.xlsx", replace
 
 assertlist_cleanup, excel(al_xl_test_2.xlsx)
+exit 99
 
 ********************************************************************************
 * To show an example of assertlist_replace we will need to add some values to 
 * the assertlist out spreadsheets in the replace  
 * NOTE: These values are completely random and not all lines will contain 
 * corrected values.
+
+* However due to limitations you can either run the code below, 
+* then manually open up each spreadsheet and SAVE the changes to 
+* populate replace statements. If this is not done the assertlist_replace demo 
+* will not produce any results.
+
+* Or you can skip the code below and manually make changes to the excel files. 
 foreach v in al_xl_test al_xl_test_clean {
 	
 	putexcel set "`v'.xlsx", modify sheet("test3_fix")	
@@ -122,7 +131,7 @@ foreach v in al_xl_test al_xl_test_clean {
 	putexcel I2 = 3
 	putexcel N3 = 190
 	putexcel close
-	
+	 
 	putexcel set "`v'.xlsx", modify sheet("several_tests_fix")
 	putexcel I2= 15900
 	putexcel I4 = 2
@@ -137,7 +146,6 @@ foreach v in al_xl_test al_xl_test_clean {
 	putexcel I13 = 3 
 	putexcel I14 = 4
 	putexcel close
-
 }
 
 * In the first example we will only provide the required EXCEL option. All other

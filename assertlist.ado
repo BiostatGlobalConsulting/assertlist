@@ -1,4 +1,4 @@
-*! assertlist version 2.06 - Mary Kay Trimner & Dale Rhoda - 2018-10-04
+*! assertlist version 2.07 - Mary Kay Trimner & Dale Rhoda - 2018-11-06
 *******************************************************************************
 * Change log
 * 				Updated
@@ -24,6 +24,7 @@
 * 2018-09-27	2.05	MK Trimner			Added sheet name to Summary tab note
 * 2018-10-04	2.06	MK Trimner			Changed the str## in post file to reflect max length of 2045
 *											Corrected typos
+* 2018-11-06	2.07	MK Trimner			Use numtobase26() to pull the Excel column name we need
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -533,9 +534,6 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		* Create data for fix tab...
 		* noi di "Creating Fix Tab..."	
 
-		* First run the program that holds the excel list
-		excel_fix_column
-		
 		use "`hold'", clear
 		
 		* Save the var types to be used later on
@@ -611,7 +609,9 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 				local c 1
 				foreach v in `newvarlist'  {
 					putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-					putexcel `=word("`exlist'",`c')'1 = ("`v'")
+					
+					mata: st_local("xlcolname", invtokens(numtobase26(`c')))
+					putexcel `xlcolname'1 = ("`v'")
 					
 					local ++c
 				}
@@ -646,6 +646,9 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 			local idw 2
 			local t 1
 			foreach v in `idlist' {
+			
+				mata: st_local("xlcolname", invtokens(numtobase26(`=`idw'+1')))
+
 				if "`v'"=="`=word("`idlist'",1)'" {
 					replace _al_id = _al_id + `"""' + " if `v' == " in `n' 
 				}
@@ -657,17 +660,20 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 				if substr("`: type `v''",1,3) == "str" {
 					replace _al_id=_al_id + `"""' + "," + `"""' ///
 						+ `"""' + `"""' + `"""' + "," + ///
-						"`=word("`exlist'",`=`idw'+1')'`k'" + ///
+						"`xlcolname'`k'" + ///
 						"," + `"""' + `"""' + `"""' + `"""' in `n'
 				}
 				else {  
 					replace _al_id=_al_id + `"""' + "," + ///
-						"`=word("`exlist'",`=`idw'+1')'`k'" in `n'
+						"`xlcolname'`k'" in `n'
 						
 					* If the value is missing, replace in spreadsheet with "."
 					if `v'[`n']==. {
+					
+						mata: st_local("xlcolname", invtokens(numtobase26(`=`t' + 2')))
+
 						putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-						putexcel `=word("`exlist'",`=`t' + 2')'`k' = (".") 
+						putexcel `xlcolname'`k' = (".") 
 					}						  
 				}
 					
@@ -705,11 +711,12 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 				
 				* Find the Excel column based on the list local 
 				* created above
-				local L "`=word("`exlist'",`=`b'+3')'"
-				local L2 "`=word("`exlist'",`=`b'+4')'"
-				local L3 "`=word("`exlist'",`b')'"
+				mata: st_local("L" , invtokens(numtobase26(`=`b'+3')))
+				mata: st_local("L2", invtokens(numtobase26(`=`b'+4')))
+				mata: st_local("L3", invtokens(numtobase26(`b')))
+						
 				local g `=substr("``=_al_var_`i'[`n']''",1,3)'
-					
+				
 				* This will use the var type stored at the 
 				* beginning of the program
 				* Each is named after the var
@@ -787,9 +794,6 @@ program define write_nofix_sheet
 				sheetmodify cell(A`row') datestring("%tdDD/Mon/CCYY") 
 				
 			* Now do a putexcel to place the varnames
-			* Need to run the column name program first
-			excel_fix_column
-			
 			* Create new local to be all varlist
 			unab newvarlist: _all
 			
@@ -799,7 +803,9 @@ program define write_nofix_sheet
 				local c 1
 				foreach v in `newvarlist'  {
 					putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-					putexcel `=word("`exlist'",`c')'1 = ("`v'")
+					
+					mata: st_local("xlcolname", invtokens(numtobase26(`c')))
+					putexcel `xlcolname'1 = ("`v'")
 					
 					local ++c
 				}
@@ -886,27 +892,6 @@ program define format_sheet
 		mata b.close_book()	
 	}
 end		
-
-********************************************************************************
-********************************************************************************
-******							Excel Fix Column 						   *****
-********************************************************************************
-********************************************************************************
-
-capture program drop excel_fix_column
-program define excel_fix_column
-
-	qui {
-		* Create local that will be used to identify which Excel cells are
-		* to be populated with concatenate function 		
-		mata: (1..250)
-		mata: numtobase26((1..250))
-		
-		mata: st_local("exlist", invtokens(numtobase26(1..250)))
-		
-		c_local exlist `exlist'	
-	}
-end
 
 ********************************************************************************
 ********************************************************************************
