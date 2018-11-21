@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.01 - Biostat Global Consulting - 2018-10-17
+*! assertlist_replace version 1.02 - Biostat Global Consulting - 2018-11-21
 
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
@@ -19,6 +19,13 @@
 *										Also changed the check for Current value
 *										to include more words in strpos so that replace
 *										statement is not included
+* 2018-11-21  	1.02	MK Trimner		- Added subprogram that populates replace 
+*										statements in dataset and excel file...
+*										this was removed from original Assertlist program
+*										to speed up this process.
+*										- Formatted columns in replace spreadsheet
+*										to show replace commands
+*										-Corrected split up of comments to remove duplicate first and last word
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -84,7 +91,7 @@ program define assertlist_replace
 				import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear
 				
 				* Cleanup so we are only looking at the relevant information
-				assertlist_replace_cleanup, sheet(`sheet') sheetnum(`b')			
+				assertlist_replace_cleanup, sheet(`sheet') sheetnum(`b') excel(`excel')
 			}
 		}
 		
@@ -92,8 +99,8 @@ program define assertlist_replace
 		
 		* If there are lines left move on to the next steps
 		if `=_N' > 0 {
-				* Identify duplicates and conflicts
-				assertlist_replace_conflict
+			* Identify duplicates and conflicts
+			assertlist_replace_conflict
 				
 			* Open .DO file and add opening comments
 			assertlist_replace_open, excel(`excel') dofile(`dofile') comments(`comments') ///
@@ -110,7 +117,7 @@ program define assertlist_replace
 	}
 	
 end
-				
+
 ********************************************************************************
 ********************************************************************************
 ******							Clean up data							   *****
@@ -119,15 +126,15 @@ end
 capture program drop assertlist_replace_cleanup
 program assertlist_replace_cleanup
 
-	syntax , SHEET(string asis)	SHEETNUM(string asis)
+	syntax , SHEET(string asis)	SHEETNUM(string asis) EXCEL(string asis)
 
 	noi di as text "Adding `sheet' to full dataset..."
 
 	qui {
 		* Create locals to populate var number
-		local 1 1
-		local 2 1
-		local 3 1
+		forvalues i = 1/5 {
+			local `i' 1
+		}
 		
 		* Create local with name of variables to drop and rename
 		local droplist
@@ -149,7 +156,15 @@ program assertlist_replace_cleanup
 			}
 			
 			if strpos("`: var label `v''", "Current Value of ") > 0 {
-				local droplist `droplist' `v'
+				local renamelist `renamelist' rename `v' _al_original_var_`4'
+				local droplist `droplist'  _al_original_var_`4'
+				local ++4
+			}
+			
+			if strpos("`: var label `v''", "Value type of ") > 0 {
+				local renamelist `renamelist' rename `v' _al_var_type_`5'
+				local droplist `droplist'  _al_var_type_`5'
+				local ++5
 			}
 			
 			if "`v'"=="UserSpecifiedAdditionalInform" rename `v' _al_tag
@@ -164,20 +179,25 @@ program assertlist_replace_cleanup
 		forvalues i = 1(3)`c' {
 			``i'' ``=`i'+1'' ``=`i'+2''
 		}
-			
-		* Drop variables not needed
-		drop `droplist' *type* 
-		
+				
 		* Create a local to grab the id variables
 		local idlist
 		foreach v of varlist * {
 			if strpos("`v'","_al_") == 0 local idlist `idlist' `v' 
 		}
 		
-		* Try to destring the idlist
-		foreach v in `idlist' {
+		* Try to destring the idlist and other numeric variables
+		foreach v in _al_check_sequence _al_num_var_checked `idlist' {
 			destring `v', replace
 		}
+		
+		if "`droplist'"=="" local droplist _al_original_* _al_var_type_*
+			
+		* Run subprogram to populate replace statements in dataset and excel file
+		assertlist_pop_replace_statement, sheet(`sheet') excel(`excel') idlist(`idlist')
+		
+		* Drop variables not needed
+		capture drop `droplist'
 		
 		* Only keep the relevant variables
 		keep _al_num_var_checked _al_check_sequence _al_tag _al_assertion_syntax ///
@@ -187,7 +207,8 @@ program assertlist_replace_cleanup
 		gen num_vars=0
 		qui summarize _al_num_var_checked
 		forvalues i = 1/`=r(max)' {
-			replace num_vars = num_vars + 1 if !missing(_al_replace_var_`i')
+			tostring _al_num_var_checked, replace
+			replace num_vars = num_vars + 1 if !missing(_al_correct_var_`i')
 		}
 	
 		drop if num_vars == 0
@@ -200,27 +221,143 @@ program assertlist_replace_cleanup
 		gen tif = ""
 		forvalues i = 1/`=_N' {
 			foreach id in `idlist' {
-				if "`=substr("`:type `id''",1,3)'"=="str" replace tif = tif + " " + "`id'" + " " + "--" + strtrim(`id'[`i']) + "--" in `i'
+				if "`=substr("`:type `id''",1,3)'"=="str" ///
+					replace tif = tif + " " + "`id'" + " " + "--" + strtrim(`id'[`i']) + "--" in `i'
 				else replace tif = tif + " " + "`id'" + " " + string(`id'[`i'])	in `i'
 			}
-		
+				
 			* add a . if string value and missing
-			replace tif = subinstr(tif,"----","--.--",.)
-			replace tif = strtrim(tif)
+			replace tif = subinstr(tif,"----","--.--",.) in `i'
+			replace tif = strtrim(tif) in `i'
 			
-			* Post data needed
 			forvalues n = 1/`=_al_num_var_checked[`i']' {
 				local tifvar `=_al_var_`n'[`i']' 
 				local tifvarval `=_al_correct_var_`n'[`i']'
+				
 				if !inlist("`tifvarval'","",".") ///
 					post mkt (`"`sheet'"') (`sheetnum') (`i') (`n') (`"`tifvar' `=tif[`i']'"') ///
-					(`"`tifvar' `tifvarval' `=tif[`i']'"') (`"`=_al_assertion[`i']'"') ///
+					(`"`tifvar' `tifvarval' `=tif[`i']'"') (`"`=_al_assertion_syntax[`i']'"') ///
 					(`"`=_al_tag[`i']'"') (`"`=_al_replace_var_`n'[`i']'"') (`"`=_al_var_`n'[`i']'"')
-			}
-		}		
+			}		
+		}
 	}
+	
 end	
 
+********************************************************************************
+********************************************************************************
+******					Populate Replace Statement						   *****
+********************************************************************************
+********************************************************************************
+capture program drop assertlist_pop_replace_statement
+program assertlist_pop_replace_statement
+
+	syntax , sheet(string asis) excel(string asis) idlist(varlist)
+	
+	qui {
+	
+		* Create a variable for the "if" poriton of the replac statement
+		gen idlist="if "
+		forvalues i = 1/`=_N' {
+			foreach id in `idlist' {
+				if "`=substr("`:type `id''",1,3)'"=="str" replace idlist = idlist + " " + "`id'" + " == " + `"""' + `id'[`i'] + `"""' + " &" in `i'
+				else replace idlist = idlist + " " + "`id'" + " == " + string(`id'[`i']) + " &" in `i'
+			}
+			replace idlist = substr(idlist[`i'],1,length(idlist[`i'])-1) in `i'
+
+		}
+		replace idlist = strtrim(idlist)
+
+		* Determine what cell to start at
+		* Set up local with column number
+		local wcid wordcount("`idlist'")
+		local columnnum `=`wcid'+9'
+		
+		* Create local to grab all columns with replace statements
+		local columnnums	
+		
+		qui summarize _al_num_var_checked
+		forvalues i = 1/`=r(max)' {
+			
+			tostring _al_replace_var_`i', replace
+			replace _al_replace_var_`i'="" if _al_replace_var_`i' == "." 
+
+			
+			forvalues n = 1/`=_N' {
+				* Need to account for 4 different types of replace statements
+				* Variable being replaced and Corrected Variable are both Strings
+				if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" ///
+					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+					+ `"""' + "`=_al_correct_var_`i'[`n']'" + `"""' + " " in `n'  
+				}
+				
+				* Variable being replace is String but Corrected Variable is Numeric
+				if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
+					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+					+ `"""' + string(`=_al_correct_var_`i'[`n']') + `"""' + " " in `n'  
+				}
+				
+				* Variable being replaced and Corrected Variable are both Numeric
+				if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
+					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
+					+ string(`=_al_correct_var_`i'[`n']') + " " in `n'  
+				}
+				
+				* Variable being replaced is Numeric but Corrected Variable is String
+				if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"=="str" ///
+					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
+					+ "`=_al_correct_var_`i'[`n']'" + " " in `n'  
+				}
+				
+				replace _al_replace_var_`i' = _al_replace_var_`i' + idlist if !missing(_al_replace_var_`i') in `n'
+				
+				* Set excel file for putexcel later on
+				putexcel set "`excel'.xlsx", modify sheet("`sheet'")
+			
+				* Replace in excel file
+				* Now add the replace statement back to excel
+				* Now complete the replace statements
+								
+				mata: st_local("xlcolname", invtokens(numtobase26(`columnnum')))
+				if !inlist("`=_al_correct_var_`i'[`n']'","",".") ///
+					putexcel  `xlcolname'`=`n'+1' = `"`=_al_replace_var_`i'[`n']'"', txtwrap  
+						
+			}
+			
+			local columnnums `columnnums' `columnnum'
+			local columnnum `=`columnnum' + 5'
+		}
+		
+		* Format spreadsheet
+		mata: b.load_book("`excel'.xlsx")
+		mata: b.set_mode("open")
+		mata: b.set_sheet("`sheet'")
+				
+		* Column width
+		local l 1
+		foreach c in `columnnums' {
+			* Create variable to see how long the var name/values are
+			* Grab the min length for formatting
+			tempvar `v'_`l'_l
+			gen ``v'_`l'_l'=length(_al_replace_var_`l')
+		
+			qui summarize ``v'_`l'_l'
+			local m`n'1=`=r(max) + 1'
+						
+			local len=min(`m`n'1',40)			
+			
+			if `m`n'1' > 1 mata: b.set_column_width(`c',`c',`len')
+			else mata: b.set_column_width(`c',`c',0)
+			local ++l
+		}		
+				
+		mata b.close_book()		
+	}
+end
 ********************************************************************************
 ********************************************************************************
 ******					Identify conflicting replace statement	 		  *****
@@ -315,10 +452,11 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 			local c `=wordcount("`comments'")'
 		
 			* split up the comments so that they are not too long in the .DO file
+			
 			tokenize "`comments'"
 			forvalues i = 1(10)`c' {
 					local comments`i'
-				forvalues n = `i'/`=`i'+10' {
+				forvalues n = `i'/`=`i'+9' {
 					local comments`i' `comments`i'' ``n''  
 				}
 				

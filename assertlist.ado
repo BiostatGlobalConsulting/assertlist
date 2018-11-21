@@ -1,4 +1,4 @@
-*! assertlist version 2.07 - Mary Kay Trimner & Dale Rhoda - 2018-11-06
+*! assertlist version 2.08 - Mary Kay Trimner & Dale Rhoda - 2018-11-21
 *******************************************************************************
 * Change log
 * 				Updated
@@ -25,6 +25,11 @@
 * 2018-10-04	2.06	MK Trimner			Changed the str## in post file to reflect max length of 2045
 *											Corrected typos
 * 2018-11-06	2.07	MK Trimner			Use numtobase26() to pull the Excel column name we need
+* 2018-11-21	2.08	MK Trimner			Remove Replace Statements and put in Replace program
+*											to speed up the process
+*											Made the width of replace column and variable type
+*											0 so they are hidden from the spreadsheet
+*											allowing the user to see the relevant data
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -546,8 +551,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		gen _al_num_var_checked=`num'
 						
 		* Create new vars that will be used in the Excel spreadsheet
-		* to show the old var value, correct value & Excel 
-		* concatenate formula
+		* to show the old var value, correct value & replace statement
 		/*
 		noi di as text "Creating variables to act as placeholders " ///
 						"for columns in Excel spreadsheet that will " ///
@@ -623,120 +627,6 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 				sheetreplace firstrow(var) nolabel datestring("%tdDD/Mon/CCYY") 	 
 		}
 		
-		* Create locals that will be used to help complete the 
-		* concatenate formula
-		* Local b will count which var is var1 in varlist
-		* First create a local that contains all variables in 
-		* varlist leading up to var_1 
-		* The plus 5 accounts for check_sequence, num_var_checked, 
-		* assertion_syntax and tag and the next var is var_1
-
-		local b `=`=wordcount("`idlist'")' + 5'
-
-		* Create variable that will be used for the idlist portion 
-		* of concatenate formula
-		gen _al_id=""
-		local k `row'
-		forvalues n = 1/`=_N' {
-				
-			* Populate the id portion of the replace statement in 
-			* concatenate
-			local c `=wordcount("`idlist'")'
-			
-			local idw 2
-			local t 1
-			foreach v in `idlist' {
-			
-				mata: st_local("xlcolname", invtokens(numtobase26(`=`idw'+1')))
-
-				if "`v'"=="`=word("`idlist'",1)'" {
-					replace _al_id = _al_id + `"""' + " if `v' == " in `n' 
-				}
-				else {
-					replace _al_id =_al_id + " & `v' == " in `n'
-				}
-				
-				* If the var type is string type, add extra ""
-				if substr("`: type `v''",1,3) == "str" {
-					replace _al_id=_al_id + `"""' + "," + `"""' ///
-						+ `"""' + `"""' + `"""' + "," + ///
-						"`xlcolname'`k'" + ///
-						"," + `"""' + `"""' + `"""' + `"""' in `n'
-				}
-				else {  
-					replace _al_id=_al_id + `"""' + "," + ///
-						"`xlcolname'`k'" in `n'
-						
-					* If the value is missing, replace in spreadsheet with "."
-					if `v'[`n']==. {
-					
-						mata: st_local("xlcolname", invtokens(numtobase26(`=`t' + 2')))
-
-						putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-						putexcel `xlcolname'`k' = (".") 
-					}						  
-				}
-					
-				* If v is not the last word in IDLIST add extra ""
-				if "`v'"!="`=word("`idlist'",`c')'" {
-					replace _al_id = _al_id + "," + `"""' in `n'
-				}
-			
-				local idw `=`idw'+1'
-				local ++t
-			}
-			
-			local _al_id_`n' "`=_al_id[`n']'"
-			local ++k		
-		}
-		
-		drop _al_id
-
-		* Reset the row value
-		local k `row'
-		
-		* Add the concatenate formula	
-		forvalues n = 1/`=_N' {										
-			* Set local to determine how many variables are 
-			* checked for the assertion in row `n'
-			
-			local num =_al_num_var_checked in `n'
-				
-			* Foreach variable that is being checked
-			* Create the concatenate formula
-			* Reset the local b to original value
-			local b `=`=wordcount("`idlist'")' + 5'
-																
-			forvalues i = 1/`num' {
-				
-				* Find the Excel column based on the list local 
-				* created above
-				mata: st_local("L" , invtokens(numtobase26(`=`b'+3')))
-				mata: st_local("L2", invtokens(numtobase26(`=`b'+4')))
-				mata: st_local("L3", invtokens(numtobase26(`b')))
-						
-				local g `=substr("``=_al_var_`i'[`n']''",1,3)'
-				
-				* This will use the var type stored at the 
-				* beginning of the program
-				* Each is named after the var
-				if "`g'" == "str" {							
-						putexcel set "`excel'.xlsx", modify sheet("`sheet'")			
-						putexcel `L2'`k' = formula(=if(`L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ","""",`L'`k',"""",`_al_id_`n'')))
-						
-										
-				}
-				else {
-					putexcel set "`excel'.xlsx", modify sheet("`sheet'")	
-					putexcel `L2'`k' = formula(=if( `L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ",`L'`k',`_al_id_`n'')))	
-				}
-				
-				local b `=`b'+ 5'
-				
-			}
-			local ++k
-		}
-	
 		* Format the spreadsheet
 		* noi di "Formatting FIX tab..."
 		* Identify which columns will be highlighted
@@ -886,7 +776,8 @@ program define format_sheet
 
 			foreach v in `hi' {
 				mata: b.set_fill_pattern((2,`r_v'),`v',"solid","yellow")
-				mata: b.set_column_width(`=`v'+1',`=`v'+1',20)
+				mata: b.set_column_width(`=`v'+1',`=`v'+1',0)
+				mata: b.set_column_width(`=`v'-2',`=`v'-2',0)
 			}
 		}
 		mata b.close_book()	
