@@ -1,4 +1,4 @@
-*! assertlist version 2.08 - Mary Kay Trimner & Dale Rhoda - 2018-11-21
+*! assertlist version 2.09 - Mary Kay Trimner & Dale Rhoda - 2019-01-10
 *******************************************************************************
 * Change log
 * 				Updated
@@ -30,6 +30,7 @@
 *											Made the width of replace column and variable type
 *											0 so they are hidden from the spreadsheet
 *											allowing the user to see the relevant data
+* 2019-01-10	2.09	MK Trimner			Used fmtid for excel formatting
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -752,17 +753,29 @@ program define format_sheet
 			
 		mata: b.set_sheet("`sheet'")
 		
+		* Create a generic format for all cells
+		mata format_all = b.add_fmtid()
+		mata: b.set_fmtid((1,`r_v'),(1,`m_v'),format_all)
+		
+		* Create fontid for bold that will be added when appropriate
+		mata: bold = b.add_fontid()
+		mata: b.fontid_set_font_bold(bold, "on")
+		
+		mata format_header = b.add_fmtid()
+		mata: b.set_fmtid(1,(1,`m_v'),format_header)
+		* Since this is row 1, make them shaded, bold and horizontal aligned
+		mata: b.fmtid_set_fontid(format_header, bold)
+		mata: b.fmtid_set_fill_pattern(format_header, "solid","lightgray")
+		mata: b.fmtid_set_horizontal_align(format_header, "left")
+		
 		forvalues i = 1/`m_v' {
-			mata: b.set_column_width(`i',`i',`m`i'')
-		}
+			* Create the header format ids
+			mata format_header_`i' = b.add_fmtid()
+			mata: b.set_fmtid(`=`r_v'+1',`i',format_header_`i')
+						
+			* Set column width
+			mata: b.fmtid_set_column_width(format_header_`i',`i',`i', `m`i'')
 			
-		mata: b.set_fill_pattern(1,(1,`m_v'),"solid","lightgray")
-		mata: b.set_font_bold(1,(1,`m_v'),"on")
-		mata: b.set_horizontal_align(1,(1,`m_v'),"left")
-			
-		* format the column width on sheet page
-		forvalues i = 1/`m_v' {
-			mata: b.set_column_width(`i',`i',`m`i'')
 		}
 					
 		* Highlight the correct values yellow
@@ -775,9 +788,19 @@ program define format_sheet
 			}
 
 			foreach v in `hi' {
-				mata: b.set_fill_pattern((2,`r_v'),`v',"solid","yellow")
-				mata: b.set_column_width(`=`v'+1',`=`v'+1',0)
-				mata: b.set_column_width(`=`v'-2',`=`v'-2',0)
+				* Create fmtid for highlighting
+				mata format_highlight_`v' = b.add_fmtid()
+				mata: b.set_fmtid((2,`r_v'),`v', format_highlight_`v')
+				mata: b.fmtid_set_fill_pattern(format_highlight_`v', "solid","yellow")
+			
+				* Now set fmtid to hide columns not needed
+				mata format_hide_`=`v'+1' = b.add_fmtid()
+				mata: b.set_fmtid((1,`r_v'),`=`v'+1',format_hide_`=`v'+1')
+				mata: b.fmtid_set_column_width(format_hide_`=`v'+1',`=`v'+1',`=`v'+1',0)
+
+				mata format_hide_`=`v'-2' = b.add_fmtid()
+				mata: b.set_fmtid((1,`r_v'),`=`v'-2',format_hide_`=`v'-2')
+				mata: b.fmtid_set_column_width(format_hide_`=`v'-2',`=`v'-2',`=`v'-2',0)
 			}
 		}
 		mata b.close_book()	
