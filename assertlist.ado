@@ -1,4 +1,4 @@
-*! assertlist version 2.08 - Mary Kay Trimner & Dale Rhoda - 2018-11-21
+*! assertlist version 2.09 - Mary Kay Trimner & Dale Rhoda - 2019-02-19
 *******************************************************************************
 * Change log
 * 				Updated
@@ -30,6 +30,9 @@
 *											Made the width of replace column and variable type
 *											0 so they are hidden from the spreadsheet
 *											allowing the user to see the relevant data
+* 2019-02-19	2.09	MK Trimner			Added excel formatting to use fmtid when v15
+*											Kept original format for v14
+*											Set global at start of program with version number														
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -50,6 +53,10 @@ program assertlist
 	qui {
 			tempfile hold
 			save "`hold'", replace
+			
+		* Grab the version of stata to be used for formatting
+		if c(stata_version) < 15 global FORMATTING_VERSION 14
+		else global FORMATTING_VERSION 15
 			
 		 * This program will call several subprograms  
 		 * The first will check all input options
@@ -485,7 +492,7 @@ program define write_xl_summary
 						
 		* Format Summary Page
 		* noi di as text "Formatting Summary tab..."
-		format_sheet, excel(`excel') sheet(Assertlist_Summary)
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
 	}	
 end
 
@@ -633,7 +640,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		local hi `=`=wordcount("`idlist'")' + 8'
 		
 		* Format Fix Sheet
-		format_sheet, excel(`excel') sheet(`sheet') highlight(`hi')
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
 	}	
 end		 
 
@@ -704,7 +711,7 @@ program define write_nofix_sheet
 		
 		* Format tab
 		* noi di as text "Formatting No-FIX tab..."
-		format_sheet, excel(`excel') sheet(`sheet') 
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
 	}
 end
 
@@ -714,8 +721,8 @@ end
 ********************************************************************************
 ********************************************************************************
 * Format tabs
-capture program drop format_sheet
-program define format_sheet
+capture program drop format_sheet_v14
+program define format_sheet_v14
 
 	syntax , EXCEL(string asis) SHEET(string asis) [ HIGHLIGHT(integer 0) ] 
 	
@@ -778,6 +785,100 @@ program define format_sheet
 				mata: b.set_fill_pattern((2,`r_v'),`v',"solid","yellow")
 				mata: b.set_column_width(`=`v'+1',`=`v'+1',0)
 				mata: b.set_column_width(`=`v'-2',`=`v'-2',0)
+			}
+		}
+		mata b.close_book()	
+	}
+end		
+
+********************************************************************************
+********************************************************************************
+******						Format Excel Sheet	for v15					   *****
+********************************************************************************
+********************************************************************************
+* Format tabs
+capture program drop format_sheet_v15
+program define format_sheet_v15
+
+	syntax , EXCEL(string asis) SHEET(string asis) [ HIGHLIGHT(integer 0) ] 
+	
+	qui {
+		* Pull in Excel sheet to format
+		* Grab the Excel data: Row count
+		* use mata to populate table formatting
+		mata: b = xl()
+		mata: b.load_book("`excel'.xlsx")
+		mata: b.set_mode("open")
+		
+		mata: b.set_sheet("`sheet'")
+			
+		* Determine the column widths
+		noi import excel using "`excel'.xlsx", sheet("`sheet'") ///
+		allstring clear
+		describe
+						
+		local m_v=`=r(k)'
+		local r_v=`=r(N)'
+				
+		local i 1
+		foreach v of varlist * {
+			tempvar `v'_l
+			gen ``v'_l'=length(`v')
+			summarize ``v'_l'
+			local m`i'=min(`=`r(max)'+1',25)
+			drop ``v'_l'
+			local ++i
+		}
+		
+		* Create fontid for bold that will be added when appropriate
+		mata: bold = b.add_fontid()
+		mata: b.fontid_set_font_bold(bold, "on")
+		
+		* Add textwrap to all rows
+		mata format_txtwrap = b.add_fmtid()
+		mata: b.set_fmtid((2,`r_v'),(2,`m_v'),format_txtwrap)
+		mata: b.fmtid_set_text_wrap(format_txtwrap, "on")
+				
+		forvalues i = 1/`m_v' {
+			* Create the header format ids
+			mata format_header_`i' = b.add_fmtid()
+			mata: b.set_fmtid(1,`i',format_header_`i')
+			
+			* Since this is row 1, make them shaded, bold and horizontal aligned
+			mata: b.fmtid_set_fontid(format_header_`i', bold)
+			mata: b.fmtid_set_fill_pattern(format_header_`i', "solid","lightgray")
+			mata: b.fmtid_set_horizontal_align(format_header_`i', "left")
+						
+			* Set column width
+			mata format_width_`i' = b.add_fmtid()
+			mata: b.set_fmtid(2,`i',format_width_`i')
+			mata: b.fmtid_set_text_wrap(format_width_`i', "on")
+			mata: b.fmtid_set_column_width(format_width_`i',`i',`i', `m`i'')
+		}
+					
+		* Highlight the correct values yellow
+		if "`highlight'"!="0" {
+		
+			* Determine which rows need highlighted to pass through
+			local hi
+			forvalues i = `highlight'(5)`m_v' {
+				local hi `hi' `i'
+			}
+
+			foreach v in `hi' {
+				* Create fmtid for highlighting
+				mata format_highlight_`v' = b.add_fmtid()
+				mata: b.set_fmtid((2,`r_v'),`v', format_highlight_`v')
+				mata: b.fmtid_set_fill_pattern(format_highlight_`v', "solid","yellow")
+			
+				* Now set fmtid to hide columns not needed
+				mata format_hide_`=`v'+1' = b.add_fmtid()
+				mata: b.set_fmtid((1,`r_v'),`=`v'+1',format_hide_`=`v'+1')
+				mata: b.fmtid_set_column_width(format_hide_`=`v'+1',`=`v'+1',`=`v'+1',0)
+
+				mata format_hide_`=`v'-2' = b.add_fmtid()
+				mata: b.set_fmtid((1,`r_v'),`=`v'-2',format_hide_`=`v'-2')
+				mata: b.fmtid_set_column_width(format_hide_`=`v'-2',`=`v'-2',`=`v'-2',0)
 			}
 		}
 		mata b.close_book()	

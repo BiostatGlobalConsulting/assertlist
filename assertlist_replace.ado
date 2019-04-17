@@ -36,6 +36,10 @@ program define assertlist_replace
 	syntax  , EXCEL(string asis) [DOfile(string asis) DATE(string asis) ///
 								REVIEWER(string asis) COMMENTS(string asis) ///
 								DATASET1(string asis) DATASET2(string asis)]
+								
+	* Grab the version of stata to be used for formatting
+	if c(stata_version) < 15 global FORMATTING_VERSION 14
+	else global FORMATTING_VERSION 15
 	
 	noi di as text "Confirming excel file exists..."
 	
@@ -348,10 +352,36 @@ program assertlist_pop_replace_statement
 			qui summarize ``v'_`l'_l'
 			local m`n'1=`=r(max) + 1'
 						
-			local len=min(`m`n'1',40)			
+			local len=min(`m`n'1',40)	
 			
-			if `m`n'1' > 1 mata: b.set_column_width(`c',`c',`len')
-			else mata: b.set_column_width(`c',`c',0)
+			if $FORMATTING_VERSION == 15 {
+					* Create fontid for bold that will be added when appropriate
+				mata: bold = b.add_fontid()
+				mata: b.fontid_set_font_bold(bold, "on")
+				
+				mata format_`c' = b.add_fmtid()
+				mata: b.set_fmtid((2,`=_N'),`c', format_`c')
+				mata: b.fmtid_set_text_wrap(format_`c', "on")
+				
+				if `m`n'1' > 1 {
+					mata: b.fmtid_set_column_width(format_`c',`c',`c',`len')
+					
+					* Create fmtid for first row
+					mata format_header_`c' = b.add_fmtid()
+					mata: b.set_fmtid(1,`c',format_header_`c')
+					* Since this is row 1, make them shaded, bold and horizontal aligned
+					mata: b.fmtid_set_fontid(format_header_`c', bold)
+					mata: b.fmtid_set_fill_pattern(format_header_`c', "solid","lightgray")
+					mata: b.fmtid_set_horizontal_align(format_header_`c', "left")
+					mata: b.fmtid_set_text_wrap(format_header_`c', "on")
+				}
+				
+				else mata: b.fmtid_set_column_width(format_`c',`c',`c',0)
+			}
+			else {
+				if `m`n'1' > 1 mata: b.set_column_width(`c',`c',`len')
+				else mata: b.set_column_width(`c',`c',0)
+			}
 			local ++l
 		}		
 				

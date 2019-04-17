@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.09 - Biostat Global Consulting - 2018-11-21
+*! assertlist_cleanup version 1.09 - Biostat Global Consulting - 2019-02-21
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -26,6 +26,11 @@
 *										in replace program to speed up process.
 *										- Added code to set column width to 0 if 
 *										replace column or var type
+* 2019-02-21	1.10	MK Trimner		Cleaned up formatting excel subprogram to remove code  
+*										Also changed it to format each tab rather than each column at a time
+*										Adjusted column width criteria so it takes into account the difference
+*										between varname and value lengths rather than if name is greater
+*										than values
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -34,7 +39,6 @@
 program define assertlist_cleanup
 
 	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT ]
-	
 
 	noi di as text "Confirming excel file exists..."
 	
@@ -72,6 +76,9 @@ program define assertlist_cleanup
 			local excel `name'
 		}
 
+		* Create a local that will hold the length of each header
+		local passthrough 0
+		local hide 0
 		* Go through each of the sheets
 		forvalues b = 1/`f' {
 			
@@ -84,6 +91,10 @@ program define assertlist_cleanup
 			* Import file
 			noi di as text "Importing excel sheet: `sheet'..."
 			import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
+			
+			* Grab column count
+			qui describe
+			local columns = r(k)
 			
 			* Create a local with the cell range for sheet
 			local range `=r(range_`b')'
@@ -116,17 +127,15 @@ program define assertlist_cleanup
 				
 				* Rename all the variables
 				assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
-					max(`max') var(`v')
-				
-				* Format the tabs
-				assertlist_cleanup_format, excel(`excel') sheet(`sheet') n(`n') ///
-					m1(`m`n'1') m2(`m`n'2') type(`type') replace(`replace') 
-				
+					max(`max') var(`v') passthrough(`passthrough') hide(`hide')
+							
 				local ++n
 			}
 			
-		* Wrap text
-		putexcel (`range'), txtwrap
+		* Format header row for each tab
+		assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
+			passthrough(`passthrough') hide(`hide')
+		
 		}
 	}
 
@@ -184,15 +193,14 @@ end
 capture program drop assertlist_cleanup_rename
 program define assertlist_cleanup_rename
 
-syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
-
+syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
+			PASSTHROUGH(string asis) HIDE(string asis)
 	qui {
 
 		local v `var'
 		
 		* Reset two locals that will be trigger column width formatting
-		local type
-		local replace
+		local hide_var
 		
 		* Grab the max length for formatting
 		tempvar `v'_l
@@ -227,7 +235,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 				if "``v''"=="var_`i'"			local `v' Name of Variable `i'  Checked in Assertion
 				if "``v''"=="var_type_`i'"		{
 					local `v' Value type of Variable `i'
-					local type yes
+					local hide_var yes
 				}
 				if "``v''"=="original_var_`i'"	local `v' Current Value	of Variable `i'
 				if "``v''"=="correct_var_`i'"	{
@@ -236,7 +244,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 				}
 				if "``v''"=="replace_var_`i'"	{
 					local `v' Stata Code to Be Used to Replace Current Value with Correct Value for Variable `i'
-					local replace yes
+					local hide_var yes
 				}
 			}
 		}
@@ -249,9 +257,13 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
 		putexcel `xlcolname'1 = "``v''", txtwrap
+		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
+		
+		if `n'==1 local passthrough `m`n'2'
+		else local passthrough `passthrough' `m`n'2'
 	
 		* Pass through the locals
-		foreach v in m`n'1 m`n'2 type replace {
+		foreach v in passthrough hide { 
 			c_local `v' ``v''
 		}
 	}
@@ -263,11 +275,10 @@ end
 ********************************************************************************
 ********************************************************************************
 
-capture program drop assertlist_cleanup_format
-program define assertlist_cleanup_format
+capture program drop assertlist_cleanup_format_header
+program define assertlist_cleanup_format_header
 
-syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int) ///
-		[type(string asis) replace(string asis)]
+	syntax , EXCEL(string asis) SHEET(string asis) PASSTHROUGH(string asis) HIDE(string asis)
 	
 	* Format the width of each column
 	* use mata to populate table formatting
@@ -278,11 +289,36 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int) ///
 		
 		mata: b.set_sheet("`sheet'")
 		
-		if `m2'>`m1'	mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+ 11')')
-		else 			mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+3')')
+		* Determine the column widths
+		noi import excel using "`excel'.xlsx", sheet("`sheet'") ///
+		firstrow allstring clear
+		describe
+						
+		local m_v=`=r(k)'
+		local r_v=`=r(N)'
 		
-		foreach l in type replace {
-			if "``l''"=="yes" mata: b.set_column_width(`n',`n',0)
+		local i 1
+		foreach v of varlist * {
+			tempvar `v'_l
+			gen ``v'_l'=length(`v')
+			summarize ``v'_l'
+			local m`i'1=min(`=`r(max)'+1',25)
+			local m`i'2=word("`passthrough'",`i')
+			drop ``v'_l'
+			
+			local ++i
+		}
+		
+		forvalues i = 1/`m_v' {
+			* Set column width
+			local width `=`m`i'1'+3'
+			if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
+			if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
+			mata: b.set_column_width(`i',`i',`=min(30,`width')')
+		}
+			
+		foreach l in `=substr("`hide'",3,.)' {
+			mata: b.set_column_width(`l',`l',0)
 		}
 		
 		* Set the row height 
