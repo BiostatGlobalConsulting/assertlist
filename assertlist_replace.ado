@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.02 - Biostat Global Consulting - 2018-11-21
+*! assertlist_replace version 1.03 - Biostat Global Consulting - 2019-04-17
 
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
@@ -26,6 +26,9 @@
 *										- Formatted columns in replace spreadsheet
 *										to show replace commands
 *										-Corrected split up of comments to remove duplicate first and last word
+* 2019-04-17	1.03	MK Trimner		- Added some clean up steps: 
+*										delete the fix file at the end of program
+*										capture postclose mkt before setting up postfile in case of error
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -80,6 +83,7 @@ program define assertlist_replace
 		local f `=r(N_worksheet)'
 				
 		* Open post file 
+		capture postclose mkt
 		postfile mkt str100(sheet) float(sheetnum row varnum) str1000(tif trif assertion tag replacement varname) using fix, replace
 
 		* Go through each of the sheets to determine if they are fix
@@ -118,6 +122,8 @@ program define assertlist_replace
 			capture file close replacement
 		}
 		else noi di as error "No replace statements in spreadsheet."
+		
+		capture erase fix.dta
 	}
 	
 end
@@ -286,8 +292,54 @@ program assertlist_pop_replace_statement
 			tostring _al_replace_var_`i', replace
 			replace _al_replace_var_`i'="" if _al_replace_var_`i' == "." 
 
-			
+			* Try to remove the line by line replace statements
 			forvalues n = 1/`=_N' {
+				if !missing(_al_correct_var_`i') in `n' {
+					* Need to account for 4 different types of replace statements
+					* Variable being replaced and Corrected Variable are both Strings
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" ///
+						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+						+ `"""' + "`=_al_correct_var_`i'[`n']'" + `"""' + " " in `n'  
+					}
+					
+					* Variable being replace is String but Corrected Variable is Numeric
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
+						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+						+ `"""' + string(`=_al_correct_var_`i'[`n']') + `"""' + " " in `n'  
+					}
+					
+					* Variable being replaced and Corrected Variable are both Numeric
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
+						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
+						+ string(`=_al_correct_var_`i'[`n']') + " " in `n'  
+					}
+					
+					* Variable being replaced is Numeric but Corrected Variable is String
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"=="str" ///
+						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
+						+ "`=_al_correct_var_`i'[`n']'" + " " in `n'  
+					}
+					
+					replace _al_replace_var_`i' = _al_replace_var_`i' + idlist if !missing(_al_replace_var_`i') in `n'
+					
+					* Set excel file for putexcel later on
+					putexcel set "`excel'.xlsx", modify sheet("`sheet'")
+				
+					* Replace in excel file
+					* Now add the replace statement back to excel
+					* Now complete the replace statements
+									
+					mata: st_local("xlcolname", invtokens(numtobase26(`columnnum')))
+					if !inlist("`=_al_correct_var_`i'[`n']'","",".") ///
+						putexcel  `xlcolname'`=`n'+1' = `"`=_al_replace_var_`i'[`n']'"', txtwrap  
+				}		
+			}
+			
+			/*forvalues n = 1/`=_N' {
 				* Need to account for 4 different types of replace statements
 				* Variable being replaced and Corrected Variable are both Strings
 				if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" ///
@@ -330,7 +382,7 @@ program assertlist_pop_replace_statement
 				if !inlist("`=_al_correct_var_`i'[`n']'","",".") ///
 					putexcel  `xlcolname'`=`n'+1' = `"`=_al_replace_var_`i'[`n']'"', txtwrap  
 						
-			}
+			}*/
 			
 			local columnnums `columnnums' `columnnum'
 			local columnnum `=`columnnum' + 5'
