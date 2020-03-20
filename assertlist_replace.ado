@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.03 - Biostat Global Consulting - 2019-04-17
+*! assertlist_replace version 1.04 - Biostat Global Consulting - 2020-03-20
 
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
@@ -27,8 +27,12 @@
 *										to show replace commands
 *										-Corrected split up of comments to remove duplicate first and last word
 * 2019-04-17	1.03	MK Trimner		- Added some clean up steps: 
-*										delete the fix file at the end of program
+* 2019-05-01							delete the fix file at the end of program
 *										capture postclose mkt before setting up postfile in case of error
+*										Removed code to add replace statement to excel file
+*										as well as formatting since it is not needed
+*										Removed additional code that was not needed due to this change
+* 2020-03-20	1.04	MK Trimner		Cleaned up comments
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -75,7 +79,7 @@ program define assertlist_replace
 	}
 	else {
 		
-		* If name not specified for file, set file name
+		* If name not specified for dofile, set dofile name to default name
 		if "`dofile'"=="" local dofile replacement_commands
 	
 		* Describe excel file to determine how many sheets are present
@@ -87,6 +91,7 @@ program define assertlist_replace
 		postfile mkt str100(sheet) float(sheetnum row varnum) str1000(tif trif assertion tag replacement varname) using fix, replace
 
 		* Go through each of the sheets to determine if they are fix
+		local cleanup 0
 		forvalues b = 1/`f' {
 			capture import excel using "`excel'.xlsx", describe
 			local sheet `=r(worksheet_`b')'
@@ -98,15 +103,24 @@ program define assertlist_replace
 				noi di as text "Importing excel sheet: `sheet'..."
 				import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear
 				
+				* Determine if there are any replace statements
+				foreach v of varlist* {
+					if strpos("`: var label `v''", "Blank Space") > 0 | strpos("`: var label `v''", "_al_correct")  {
+						local cleanup 1
+						qui count if !missing(`v')
+						continue, break
+					}
+				}
+						
 				* Cleanup so we are only looking at the relevant information
-				assertlist_replace_cleanup, sheet(`sheet') sheetnum(`b') excel(`excel')
+				if `cleanup' == 1 assertlist_replace_cleanup, sheet(`sheet') sheetnum(`b') excel(`excel')
 			}
 		}
 		
 		postclose mkt
 		
 		* If there are lines left move on to the next steps
-		if `=_N' > 0 {
+		if `cleanup'==1 & `=_N' > 0 {
 			* Identify duplicates and conflicts
 			assertlist_replace_conflict
 				
@@ -121,7 +135,7 @@ program define assertlist_replace
 			file write replacement " save, replace" _n
 			capture file close replacement
 		}
-		else noi di as error "No replace statements in spreadsheet."
+		else noi di as error "No corrected values provided in spreadsheet."
 		
 		capture erase fix.dta
 	}
@@ -142,7 +156,7 @@ program assertlist_replace_cleanup
 
 	qui {
 		* Create locals to populate var number
-		forvalues i = 1/5 {
+		forvalues i = 1/4 {
 			local `i' 1
 		}
 		
@@ -151,30 +165,26 @@ program assertlist_replace_cleanup
 		local renamelist
 		
 		foreach v of varlist * {
-			if strpos("`: var label `v''","Replace") > 0 {
-				local renamelist `renamelist' rename `v' _al_replace_var_`1'
-				local ++1
-			}
 			if strpos("`: var label `v''","Name of Variable") > 0 {
-				local renamelist `renamelist' rename `v' _al_var_`2' 
-				local ++2
+				local renamelist `renamelist' rename `v' _al_var_`1' 
+				local ++1
 			}
 				
 			if strpos("`: var label `v''", "Blank Space") > 0 {
-				local renamelist `renamelist' rename `v' _al_correct_var_`3' 
-				local ++3
+				local renamelist `renamelist' rename `v' _al_correct_var_`2' 
+				local ++2
 			}
 			
 			if strpos("`: var label `v''", "Current Value of ") > 0 {
-				local renamelist `renamelist' rename `v' _al_original_var_`4'
-				local droplist `droplist'  _al_original_var_`4'
-				local ++4
+				local renamelist `renamelist' rename `v' _al_original_var_`3'
+				local droplist `droplist'  _al_original_var_`3'
+				local ++3
 			}
 			
 			if strpos("`: var label `v''", "Value type of ") > 0 {
-				local renamelist `renamelist' rename `v' _al_var_type_`5'
-				local droplist `droplist'  _al_var_type_`5'
-				local ++5
+				local renamelist `renamelist' rename `v' _al_var_type_`4'
+				local droplist `droplist'  _al_var_type_`4'
+				local ++4
 			}
 			
 			if "`v'"=="UserSpecifiedAdditionalInform" rename `v' _al_tag
@@ -202,16 +212,13 @@ program assertlist_replace_cleanup
 		}
 		
 		if "`droplist'"=="" local droplist _al_original_* _al_var_type_*
+				
 			
 		* Run subprogram to populate replace statements in dataset and excel file
-		assertlist_pop_replace_statement, sheet(`sheet') excel(`excel') idlist(`idlist')
-		
+		assertlist_pop_replace_statement, idlist(`idlist') //sheet(`sheet') excel(`excel') 
+				
 		* Drop variables not needed
 		capture drop `droplist'
-		
-		* Only keep the relevant variables
-		keep _al_num_var_checked _al_check_sequence _al_tag _al_assertion_syntax ///
-				_al_replace_var_* _al_correct_var_* _al_var_* `idlist'
 				
 		* Drop if line does not contain a replace statement 
 		gen num_vars=0
@@ -243,7 +250,7 @@ program assertlist_replace_cleanup
 			forvalues n = 1/`=_al_num_var_checked[`i']' {
 				local tifvar `=_al_var_`n'[`i']' 
 				local tifvarval `=_al_correct_var_`n'[`i']'
-				
+							
 				if !inlist("`tifvarval'","",".") ///
 					post mkt (`"`sheet'"') (`sheetnum') (`i') (`n') (`"`tifvar' `=tif[`i']'"') ///
 					(`"`tifvar' `tifvarval' `=tif[`i']'"') (`"`=_al_assertion_syntax[`i']'"') ///
@@ -262,11 +269,11 @@ end
 capture program drop assertlist_pop_replace_statement
 program assertlist_pop_replace_statement
 
-	syntax , sheet(string asis) excel(string asis) idlist(varlist)
+	syntax , idlist(varlist) //sheet(string asis) excel(string asis) 
 	
 	qui {
 	
-		* Create a variable for the "if" poriton of the replac statement
+		* Create a variable for the "if" poriton of the replace statement
 		gen idlist="if "
 		forvalues i = 1/`=_N' {
 			foreach id in `idlist' {
@@ -277,20 +284,11 @@ program assertlist_pop_replace_statement
 
 		}
 		replace idlist = strtrim(idlist)
-
-		* Determine what cell to start at
-		* Set up local with column number
-		local wcid wordcount("`idlist'")
-		local columnnum `=`wcid'+9'
-		
-		* Create local to grab all columns with replace statements
-		local columnnums	
 		
 		qui summarize _al_num_var_checked
 		forvalues i = 1/`=r(max)' {
 			
-			tostring _al_replace_var_`i', replace
-			replace _al_replace_var_`i'="" if _al_replace_var_`i' == "." 
+			gen _al_replace_var_`i'=""
 
 			* Try to remove the line by line replace statements
 			forvalues n = 1/`=_N' {
@@ -326,118 +324,9 @@ program assertlist_pop_replace_statement
 					
 					replace _al_replace_var_`i' = _al_replace_var_`i' + idlist if !missing(_al_replace_var_`i') in `n'
 					
-					* Set excel file for putexcel later on
-					putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-				
-					* Replace in excel file
-					* Now add the replace statement back to excel
-					* Now complete the replace statements
-									
-					mata: st_local("xlcolname", invtokens(numtobase26(`columnnum')))
-					if !inlist("`=_al_correct_var_`i'[`n']'","",".") ///
-						putexcel  `xlcolname'`=`n'+1' = `"`=_al_replace_var_`i'[`n']'"', txtwrap  
 				}		
 			}
-			
-			/*forvalues n = 1/`=_N' {
-				* Need to account for 4 different types of replace statements
-				* Variable being replaced and Corrected Variable are both Strings
-				if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" ///
-					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
-					+ `"""' + "`=_al_correct_var_`i'[`n']'" + `"""' + " " in `n'  
-				}
-				
-				* Variable being replace is String but Corrected Variable is Numeric
-				if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
-					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
-					+ `"""' + string(`=_al_correct_var_`i'[`n']') + `"""' + " " in `n'  
-				}
-				
-				* Variable being replaced and Corrected Variable are both Numeric
-				if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
-					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
-					+ string(`=_al_correct_var_`i'[`n']') + " " in `n'  
-				}
-				
-				* Variable being replaced is Numeric but Corrected Variable is String
-				if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"=="str" ///
-					& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-					replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
-					+ "`=_al_correct_var_`i'[`n']'" + " " in `n'  
-				}
-				
-				replace _al_replace_var_`i' = _al_replace_var_`i' + idlist if !missing(_al_replace_var_`i') in `n'
-				
-				* Set excel file for putexcel later on
-				putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-			
-				* Replace in excel file
-				* Now add the replace statement back to excel
-				* Now complete the replace statements
-								
-				mata: st_local("xlcolname", invtokens(numtobase26(`columnnum')))
-				if !inlist("`=_al_correct_var_`i'[`n']'","",".") ///
-					putexcel  `xlcolname'`=`n'+1' = `"`=_al_replace_var_`i'[`n']'"', txtwrap  
-						
-			}*/
-			
-			local columnnums `columnnums' `columnnum'
-			local columnnum `=`columnnum' + 5'
 		}
-		
-		* Format spreadsheet
-		mata: b.load_book("`excel'.xlsx")
-		mata: b.set_mode("open")
-		mata: b.set_sheet("`sheet'")
-				
-		* Column width
-		local l 1
-		foreach c in `columnnums' {
-			* Create variable to see how long the var name/values are
-			* Grab the min length for formatting
-			tempvar `v'_`l'_l
-			gen ``v'_`l'_l'=length(_al_replace_var_`l')
-		
-			qui summarize ``v'_`l'_l'
-			local m`n'1=`=r(max) + 1'
-						
-			local len=min(`m`n'1',40)	
-			
-			if $FORMATTING_VERSION == 15 {
-					* Create fontid for bold that will be added when appropriate
-				mata: bold = b.add_fontid()
-				mata: b.fontid_set_font_bold(bold, "on")
-				
-				mata format_`c' = b.add_fmtid()
-				mata: b.set_fmtid((2,`=_N'),`c', format_`c')
-				mata: b.fmtid_set_text_wrap(format_`c', "on")
-				
-				if `m`n'1' > 1 {
-					mata: b.fmtid_set_column_width(format_`c',`c',`c',`len')
-					
-					* Create fmtid for first row
-					mata format_header_`c' = b.add_fmtid()
-					mata: b.set_fmtid(1,`c',format_header_`c')
-					* Since this is row 1, make them shaded, bold and horizontal aligned
-					mata: b.fmtid_set_fontid(format_header_`c', bold)
-					mata: b.fmtid_set_fill_pattern(format_header_`c', "solid","lightgray")
-					mata: b.fmtid_set_horizontal_align(format_header_`c', "left")
-					mata: b.fmtid_set_text_wrap(format_header_`c', "on")
-				}
-				
-				else mata: b.fmtid_set_column_width(format_`c',`c',`c',0)
-			}
-			else {
-				if `m`n'1' > 1 mata: b.set_column_width(`c',`c',`len')
-				else mata: b.set_column_width(`c',`c',0)
-			}
-			local ++l
-		}		
-				
-		mata b.close_book()		
 	}
 end
 ********************************************************************************

@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.09 - Biostat Global Consulting - 2019-02-21
+*! assertlist_cleanup version 1.11 - Biostat Global Consulting - 2019-04-17
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -31,6 +31,8 @@
 *										Adjusted column width criteria so it takes into account the difference
 *										between varname and value lengths rather than if name is greater
 *										than values
+* 2019-04-14	1.11	MK Trimner		Removed column for replace statement
+*										and all code related
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -103,7 +105,7 @@ program define assertlist_cleanup
 			local max 0
 			
 			* If it is a fix sheet, sort the variables by id
-			if "`=strpos("`sheet'","fix")'"!="0" {
+			if "`=strpos("`sheet'","fix")'" !="0" {
 			
 				* Grab the max number of vars checked
 				qui {
@@ -242,10 +244,6 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 					local `v' Blank Space for User to Provide Correct Value of Variable `i' 
 					local m`n'1 20
 				}
-				if "``v''"=="replace_var_`i'"	{
-					local `v' Stata Code to Be Used to Replace Current Value with Correct Value for Variable `i'
-					local hide_var yes
-				}
 			}
 		}
 		
@@ -256,7 +254,8 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
-		putexcel `xlcolname'1 = "``v''", txtwrap
+		putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+
 		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
 		
 		if `n'==1 local passthrough `m`n'2'
@@ -316,13 +315,13 @@ program define assertlist_cleanup_format_header
 			if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
 			mata: b.set_column_width(`i',`i',`=min(30,`width')')
 		}
-			
+		
 		foreach l in `=substr("`hide'",3,.)' {
 			mata: b.set_column_width(`l',`l',0)
 		}
 		
 		* Set the row height 
-		mata: b.set_row_height(1,1,90)
+		mata: b.set_row_height(1,1,100)
 		
 		mata b.close_book()		
 	}

@@ -27,7 +27,7 @@
 	assert command and provide details around WHICH rows failed the assertion, and HOW. {p_end}
 
 {pstd} {cmd: assertlist_cleanup} takes the {cmd:assertlist} excel output and makes the column names 
-	user friendly. It also sorts each tab based on the {help assertlist##idlist:IDLIST} provided during 
+	user friendly. It also sorts all {it:"fix"} tabs based on the {help assertlist##idlist:IDLIST} provided during 
 	the assertion if the {cmd:IDSORT} option is specified. {p_end}  
 {pstd} {cmd:assertlist_cleanup} can only be used if the {help assertlist##excel:EXCEL} option was specified while running {cmd:assertlist}. 
 	If the output file does not exist, the program will exit immediately. 
@@ -48,12 +48,14 @@
 
 {pmore}	This option preserves the original {cmd:assertlist} Excel file and makes all changes to a copied version saved as {cmd:NAME}.{p_end}	 
 {pmore} {it:*See {help assertlist_cleanup##note:NOTE} for additional information regarding {cmd:NAME}.} {p_end}
+
+{pmore} {bf:Note: If NAME is not specified, the original Excel file is overwritten with new column names.} {p_end}
 {marker note}	   
 {pstd} {bf:NOTE: The input for {it:EXCEL} and {it:NAME} can include just the file name (goes to current folder) or a folder} 
         {bf: path and file name. Do {it:NOT} include double quotes around the path and filename for output Excel file.}{p_end}
 
 {marker idsort}
-{pstd} {bf:IDSORT} - Sorts each tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
+{pstd} {bf:IDSORT} - Sorts each {it:"fix"} tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
 
 {title: Column Name Change Details}
 {pstd} The list below enumerates the column name changes that are completed by {cmd:ASSERTLIST_CLEANUP}. All other column names remain the same. {p_end}
@@ -97,7 +99,6 @@
 {pmore3} b. {bf:_al_var_type_#}:	--->	{it:Value type of Variable #} {p_end}
 {pmore3} c. {bf:_al_original_var_#}:	--->	{it:Current Value of Variable #} {p_end}
 {pmore3} d. {bf:_al_correct_var_#}:	--->	{it:Blank Space for User to Provide Correct Value of Variable #} {p_end}
-{pmore3} e. {bf:_al_replace_var_#}:	--->	{it:Stata Code to Be Used to Replace Current Value with Correct Value for Variable #} {p_end}
           
 {pmore} Reference {help assertlist##fix:FIX} for column value details. {p_end}
 
@@ -115,7 +116,7 @@ Biostat Global Consulting has also created two additional programs that go along
 {pmore} {cmd:Assertlist}  List observations that contradict an assert command. {p_end}
 
 {pstd} {help assertlist_replace} - To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}. {p_end}
-{pmore} Pulls replace statements with corrected values from {cmd:assertlist}/{cmd:assertlist_cleanup} spreadsheet and puts them in a .do file. {p_end}
+{pmore} Pulls all populated corrected variable values from {cmd:assertlist}/{cmd:assertlist_cleanup} {it:fix} worksheets and puts them in a .do file as replace statements. {p_end}
 
 {title:See Also}
 {help assert}
