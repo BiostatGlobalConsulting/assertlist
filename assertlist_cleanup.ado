@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.08 - Biostat Global Consulting - 2018-10-24
+*! assertlist_cleanup version 1.11 - Biostat Global Consulting - 2019-04-17
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -22,6 +22,17 @@
 *										is completed.
 * 2018-10-10	1.07	MK Trimner		Corrected message
 * 2018-10-24	1.08	Dale Rhoda		Use numtobase26() to pull the Excel column name we need
+* 2018-11-21	1.09	MK Trimner		-Removed CONCATENATE formula (Replace command) and put
+*										in replace program to speed up process.
+*										- Added code to set column width to 0 if 
+*										replace column or var type
+* 2019-02-21	1.10	MK Trimner		Cleaned up formatting excel subprogram to remove code  
+*										Also changed it to format each tab rather than each column at a time
+*										Adjusted column width criteria so it takes into account the difference
+*										between varname and value lengths rather than if name is greater
+*										than values
+* 2019-04-14	1.11	MK Trimner		Removed column for replace statement
+*										and all code related
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -30,7 +41,6 @@
 program define assertlist_cleanup
 
 	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT ]
-	
 
 	noi di as text "Confirming excel file exists..."
 	
@@ -68,6 +78,9 @@ program define assertlist_cleanup
 			local excel `name'
 		}
 
+		* Create a local that will hold the length of each header
+		local passthrough 0
+		local hide 0
 		* Go through each of the sheets
 		forvalues b = 1/`f' {
 			
@@ -81,6 +94,10 @@ program define assertlist_cleanup
 			noi di as text "Importing excel sheet: `sheet'..."
 			import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
 			
+			* Grab column count
+			qui describe
+			local columns = r(k)
+			
 			* Create a local with the cell range for sheet
 			local range `=r(range_`b')'
 				
@@ -88,7 +105,7 @@ program define assertlist_cleanup
 			local max 0
 			
 			* If it is a fix sheet, sort the variables by id
-			if "`=strpos("`sheet'","fix")'"!="0" {
+			if "`=strpos("`sheet'","fix")'" !="0" {
 			
 				* Grab the max number of vars checked
 				qui {
@@ -111,16 +128,16 @@ program define assertlist_cleanup
 			foreach v of varlist * {
 				
 				* Rename all the variables
-				assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') max(`max') var(`v')
-				
-				* Format the tabs
-				assertlist_cleanup_format, excel(`excel') sheet(`sheet') n(`n') m1(`m`n'1') m2(`m`n'2') 
-				
+				assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
+					max(`max') var(`v') passthrough(`passthrough') hide(`hide')
+							
 				local ++n
 			}
 			
-		* Wrap text
-		putexcel (`range'), txtwrap
+		* Format header row for each tab
+		assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
+			passthrough(`passthrough') hide(`hide')
+		
 		}
 	}
 
@@ -167,119 +184,6 @@ program define assertlist_cleanup_idsort
 		export excel using "`excel'.xlsx", sheet("`sheet'") sheetmodify ///
 					firstrow(var) nolabel datestring("%tdDD/Mon/CCYY")
 				
-		noi di as text "Replace concatenate formulas to reflect new row order..."
-		* Create the concatenate formulas
-		
-		* Start with the id portion first
-		* Create locals that will be used to help complete the 
-		* concatenate formula
-		* Local b will count which var is var1 in varlist
-		* First create a local that contains all variables in 
-		* varlist leading up to var_1 
-		* The plus 5 accounts for check_sequence, num_var_checked, 
-		* assertion_syntax and tag and the next var is var_1
-
-		local b `=`=wordcount("`elist'")' + 5'
-
-		* Create variable that will be used for the idlist portion 
-		* of concatenate formula
-		gen _al_id=""
-		local k 2 // Starting at row 2
-		forvalues n = 1/`=_N' {
-				
-			* Populate the id portion of the replace statement in 
-			* concatenate
-			local c `=wordcount("`elist'")'
-			
-			local idw 2
-			*local t 1
-			
-			foreach v in `elist' {
-			
-				mata: st_local("xlcolname", invtokens(numtobase26(`=`idw'+1')))
-		
-				* Destring the variable if possible
-				destring `v', replace
-				
-				if "`v'"=="`=word("`elist'",1)'" {
-					replace _al_id = _al_id + `"""' + " if `v' == " in `n' 
-				}
-				else {
-					replace _al_id =_al_id + " & `v' == " in `n'
-				}
-				
-				* If the var type is string type, add extra ""
-				if substr("`: type `v''",1,3) == "str" {
-					replace _al_id=_al_id + `"""' + "," + `"""' ///
-						+ `"""' + `"""' + `"""' + "," + ///
-						"`xlcolname'`k'" + ///
-						"," + `"""' + `"""' + `"""' + `"""' in `n'
-				}
-				else {  
-					replace _al_id=_al_id + `"""' + "," + ///
-						"`xlcolname'`k'" in `n'					  
-				}
-					
-				* If v is not the last word in IDLIST add extra ""
-				if "`v'"!="`=word("`elist'",`c')'" {
-					replace _al_id = _al_id + "," + `"""' in `n'
-				}
-			
-				local idw `=`idw'+1'
-				*local ++t
-			}
-			
-			local _al_id_`n' "`=_al_id[`n']'"
-			local ++k		
-		}
-		
-		drop _al_id
-		
-		* Reset the row value
-		local k 2
-			
-		* Add the concatenate formula	
-		forvalues n = 1/`=_N' {										
-			* Set local to determine how many variables are 
-			* checked for the assertion in row `n'
-			
-			local num =_al_num_var_checked in `n'
-				
-			* Foreach variable that is being checked
-			* Create the concatenate formula
-			* Reset the local b to original value
-			local b `=`=wordcount("`elist'")' + 5'
-																
-			forvalues i = 1/`num' {
-			
-				* Find the Excel column based on the list local 
-				* created above
-				
-				mata: st_local("L" , invtokens(numtobase26(`=`b'+3')))
-				mata: st_local("L2", invtokens(numtobase26(`=`b'+4')))
-				mata: st_local("L3", invtokens(numtobase26(`b')))
-				
-				local g `=_al_var_type_`i'[`n']'
-					
-				* This will use the var type stored at the 
-				* beginning of the program
-				* Each is named after the var
-				if "`g'" == "str" {							
-						putexcel set "`excel'.xlsx", modify sheet("`sheet'")			
-						putexcel `L2'`k' = formula(=if(`L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ","""",`L'`k',"""",`_al_id_`n'')))
-						
-										
-				}
-				else {
-					putexcel set "`excel'.xlsx", modify sheet("`sheet'")	
-					putexcel `L2'`k' = formula(=if( `L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ",`L'`k',`_al_id_`n'')))	
-				}
-				
-				local b `=`b'+ 5'
-				
-			}
-			local ++k
-		}
 	}
 end
 
@@ -291,11 +195,14 @@ end
 capture program drop assertlist_cleanup_rename
 program define assertlist_cleanup_rename
 
-syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
-
+syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
+			PASSTHROUGH(string asis) HIDE(string asis)
 	qui {
 
 		local v `var'
+		
+		* Reset two locals that will be trigger column width formatting
+		local hide_var
 		
 		* Grab the max length for formatting
 		tempvar `v'_l
@@ -328,13 +235,15 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 		if `max'!=0 {
 			forvalues i = 1/`max' {
 				if "``v''"=="var_`i'"			local `v' Name of Variable `i'  Checked in Assertion
-				if "``v''"=="var_type_`i'"		local `v' Value type of Variable `i'
+				if "``v''"=="var_type_`i'"		{
+					local `v' Value type of Variable `i'
+					local hide_var yes
+				}
 				if "``v''"=="original_var_`i'"	local `v' Current Value	of Variable `i'
 				if "``v''"=="correct_var_`i'"	{
 					local `v' Blank Space for User to Provide Correct Value of Variable `i' 
 					local m`n'1 20
 				}
-				if "``v''"=="replace_var_`i'"	local `v' Stata Code to Be Used to Replace Current Value with Correct Value for Variable `i'
 			}
 		}
 		
@@ -345,10 +254,15 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist)
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
-		putexcel `xlcolname'1 = "``v''", txtwrap
+		putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+
+		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
+		
+		if `n'==1 local passthrough `m`n'2'
+		else local passthrough `passthrough' `m`n'2'
 	
 		* Pass through the locals
-		foreach v in m`n'1 m`n'2 {
+		foreach v in passthrough hide { 
 			c_local `v' ``v''
 		}
 	}
@@ -360,10 +274,10 @@ end
 ********************************************************************************
 ********************************************************************************
 
-capture program drop assertlist_cleanup_format
-program define assertlist_cleanup_format
+capture program drop assertlist_cleanup_format_header
+program define assertlist_cleanup_format_header
 
-syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int)
+	syntax , EXCEL(string asis) SHEET(string asis) PASSTHROUGH(string asis) HIDE(string asis)
 	
 	* Format the width of each column
 	* use mata to populate table formatting
@@ -374,9 +288,41 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) M1(int) M2(int)
 		
 		mata: b.set_sheet("`sheet'")
 		
-		if `m2'>`m1'	mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+ 11')')
-		else 			mata: b.set_column_width(`n',`n',`=min(30,`=`m1'+3')')
-				
+		* Determine the column widths
+		noi import excel using "`excel'.xlsx", sheet("`sheet'") ///
+		firstrow allstring clear
+		describe
+						
+		local m_v=`=r(k)'
+		local r_v=`=r(N)'
+		
+		local i 1
+		foreach v of varlist * {
+			tempvar `v'_l
+			gen ``v'_l'=length(`v')
+			summarize ``v'_l'
+			local m`i'1=min(`=`r(max)'+1',25)
+			local m`i'2=word("`passthrough'",`i')
+			drop ``v'_l'
+			
+			local ++i
+		}
+		
+		forvalues i = 1/`m_v' {
+			* Set column width
+			local width `=`m`i'1'+3'
+			if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
+			if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
+			mata: b.set_column_width(`i',`i',`=min(30,`width')')
+		}
+		
+		foreach l in `=substr("`hide'",3,.)' {
+			mata: b.set_column_width(`l',`l',0)
+		}
+		
+		* Set the row height 
+		mata: b.set_row_height(1,1,100)
+		
 		mata b.close_book()		
 	}
 end

@@ -1,4 +1,4 @@
-*! assertlist version 2.07 - Mary Kay Trimner & Dale Rhoda - 2018-11-06
+*! assertlist version 2.12 - Mary Kay Trimner & Dale Rhoda - 2020-03-20
 *******************************************************************************
 * Change log
 * 				Updated
@@ -25,6 +25,20 @@
 * 2018-10-04	2.06	MK Trimner			Changed the str## in post file to reflect max length of 2045
 *											Corrected typos
 * 2018-11-06	2.07	MK Trimner			Use numtobase26() to pull the Excel column name we need
+* 2018-11-21	2.08	MK Trimner			Remove Replace Statements and put in Replace program
+*											to speed up the process
+*											Made the width of replace column and variable type
+*											0 so they are hidden from the spreadsheet
+*											allowing the user to see the relevant data
+* 2019-02-19	2.09	MK Trimner			Added excel formatting to use fmtid when v15
+*											Kept original format for v14
+*											Set global at start of program with version number	
+* 2019-04-17	2.10	MK Trimner			Removed column for replace statement	
+*											Removed all comments with replace and any 
+*											noi di that were commented out to clean up program	
+* 2019-04-26	2.11	MK Trimner			Added wrap text in version 14 excel formatting	
+*											Removed code to format and hide replace variables since these were removed		
+* 2020-03-20	2.12	MK Trimner			Cleaned up comments					
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -45,6 +59,10 @@ program assertlist
 	qui {
 			tempfile hold
 			save "`hold'", replace
+			
+		* Grab the version of stata to be used for formatting
+		if c(stata_version) < 15 global FORMATTING_VERSION 14
+		else global FORMATTING_VERSION 15
 			
 		 * This program will call several subprograms  
 		 * The first will check all input options
@@ -138,8 +156,6 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		   EXCEL(string asis) SHEET(string asis) FIX HOLD(string asis) ]
 	qui {	   
 		* Running syntax checks...
-		* noi di as text "Completing syntax checks..."
-			
 		local exitflag 0
 		
 		* The list option is a synonym for the keep option; park
@@ -201,7 +217,7 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 				local idlist
 		}
 		
-		* If FIX and KEEP and not set, set to tempvar name obs_number
+		* If FIX and KEEP are not set, create var name _al_obs_number
 		if "`keep'" == "" & "`fix'"=="" {
 			capture confirm variable _al_obs_number
 			if _rc==0 {
@@ -237,7 +253,7 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			}
 		}
 		
-		* Create local with variables that will be created
+		* Add additional vars that will be created to this local
 		local varcheck tag check_sequence assertion_syntax `varlist_fix'
 		
 		* Create local of unique keep, idlist and checklist variables
@@ -250,12 +266,12 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		
 		local varkeep `llist'
 
-		* Identify if generated var exists in kept variables 
+		* Identify if vars generated in this program exist in kept variables 
 		foreach v in `varkeep' {
 			* Check to see if generated vars exist in vars that are kept
 			* If they do, user will need to rename vars and program will exit.
 			foreach l in `varcheck' {
-				if "`v'"=="_al_`l'" & {
+				if "`v'"=="_al_`l'" {
 					noi di as error "Assertlist error: Variable `v' is " ///
 									"generated as a new variable in "    ///
 									"assertlist program and exists in  " ///
@@ -302,7 +318,6 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			if "`f'"=="." local f 0 
 			local summaryexists 0
 			local sheetexists 0
-			
 			
 			* If the EXCEL file exists, check to see if Assertlist_Summary 
 			* and SHEET already exist as tabs; Two locals will be set and 
@@ -412,7 +427,6 @@ program define write_xl_summary
 
 	qui {
 		* Write Summary tab...
-		* noi di "Writing Summary Tab..."
 			
 		* Bring in file
 		use "`hold'", clear	
@@ -435,7 +449,6 @@ program define write_xl_summary
 		local passed = r(N)
 			
 		count if _al_asrt == 0
-		di r(N)
 		local num_fail = r(N)
 		
 		* Determine if all observations passed the assertion
@@ -472,6 +485,8 @@ program define write_xl_summary
 		use "`results'", clear
 		
 		compress
+		
+		* Export results to Summary tab
 		if `summaryexists'==1 export excel using "`excel'.xlsx", sheet("Assertlist_Summary") ///
 			sheetmodify cell(A`=$SEQUENCE+1')  
 		
@@ -479,8 +494,7 @@ program define write_xl_summary
 						sheetreplace cell(A1) firstrow(variable)
 						
 		* Format Summary Page
-		* noi di as text "Formatting Summary tab..."
-		format_sheet, excel(`excel') sheet(Assertlist_Summary)
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
 	}	
 end
 
@@ -496,14 +510,7 @@ program define trimdown
 	syntax ,  KEEP(varlist) HOLD(string asis)
 	
 	qui {
-		* Running syntax checks...
-		* noi di "Trimming down dataset..."
-		
-		* noi di as text ///
-		* "Dropping all observations that passed the assertion..."
-		* Drop if passed the assertion
-		* Note that if the observation failed, the assertion 
-		* variable _al_asrt== 0
+		* Drop if passed assertion...
 		drop if inlist(_al_asrt,1,.)
 
 		* Only keep the variables needed for output
@@ -532,13 +539,11 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		
 	qui {
 		* Create data for fix tab...
-		* noi di "Creating Fix Tab..."	
-
 		use "`hold'", clear
 		
 		* Save the var types to be used later on
 		foreach v in `idlist' `checklist' {
-			local `v' `: type `v'' //`=substr("`: type `v''",1,3)'
+			local `v' `: type `v''
 		}	
 
 		* Create a var that counts how many vars need checked
@@ -546,15 +551,8 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		gen _al_num_var_checked=`num'
 						
 		* Create new vars that will be used in the Excel spreadsheet
-		* to show the old var value, correct value & Excel 
-		* concatenate formula
-		/*
-		noi di as text "Creating variables to act as placeholders " ///
-						"for columns in Excel spreadsheet that will " ///
-						"contain the original variables, correct " ///
-						"variable values, & Excel concatenate formula" 
-		*/		
-		* Create 5 variables for each var in CHECKLIST
+		* to show the old var value, correct value 
+		* Create 4 variables for each var in CHECKLIST
 		local p
 		forvalues i =1/`num' {	
 			
@@ -572,11 +570,9 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 			}
 			
 			gen _al_correct_var_`i'=.
-			
-			gen _al_replace_var_`i'=""
-											
+														
 			local p `p' _al_var_`i' _al_var_type_`i' _al_original_var_`i' ///
-				_al_correct_var_`i' _al_replace_var_`i' 
+				_al_correct_var_`i' 
 			
 			* Check to see if checklist var is part of idlist
 			* If not, drop
@@ -585,7 +581,6 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		}
 			
 		* Order variables
-		* noi di "Ordering variables..."
 		order _al_check_sequence _al_num_var_checked ///
 			`idlist' _al_assertion_syntax _al_tag `p' 
 		
@@ -623,127 +618,13 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 				sheetreplace firstrow(var) nolabel datestring("%tdDD/Mon/CCYY") 	 
 		}
 		
-		* Create locals that will be used to help complete the 
-		* concatenate formula
-		* Local b will count which var is var1 in varlist
-		* First create a local that contains all variables in 
-		* varlist leading up to var_1 
-		* The plus 5 accounts for check_sequence, num_var_checked, 
-		* assertion_syntax and tag and the next var is var_1
-
-		local b `=`=wordcount("`idlist'")' + 5'
-
-		* Create variable that will be used for the idlist portion 
-		* of concatenate formula
-		gen _al_id=""
-		local k `row'
-		forvalues n = 1/`=_N' {
-				
-			* Populate the id portion of the replace statement in 
-			* concatenate
-			local c `=wordcount("`idlist'")'
-			
-			local idw 2
-			local t 1
-			foreach v in `idlist' {
-			
-				mata: st_local("xlcolname", invtokens(numtobase26(`=`idw'+1')))
-
-				if "`v'"=="`=word("`idlist'",1)'" {
-					replace _al_id = _al_id + `"""' + " if `v' == " in `n' 
-				}
-				else {
-					replace _al_id =_al_id + " & `v' == " in `n'
-				}
-				
-				* If the var type is string type, add extra ""
-				if substr("`: type `v''",1,3) == "str" {
-					replace _al_id=_al_id + `"""' + "," + `"""' ///
-						+ `"""' + `"""' + `"""' + "," + ///
-						"`xlcolname'`k'" + ///
-						"," + `"""' + `"""' + `"""' + `"""' in `n'
-				}
-				else {  
-					replace _al_id=_al_id + `"""' + "," + ///
-						"`xlcolname'`k'" in `n'
-						
-					* If the value is missing, replace in spreadsheet with "."
-					if `v'[`n']==. {
-					
-						mata: st_local("xlcolname", invtokens(numtobase26(`=`t' + 2')))
-
-						putexcel set "`excel'.xlsx", modify sheet("`sheet'")
-						putexcel `xlcolname'`k' = (".") 
-					}						  
-				}
-					
-				* If v is not the last word in IDLIST add extra ""
-				if "`v'"!="`=word("`idlist'",`c')'" {
-					replace _al_id = _al_id + "," + `"""' in `n'
-				}
-			
-				local idw `=`idw'+1'
-				local ++t
-			}
-			
-			local _al_id_`n' "`=_al_id[`n']'"
-			local ++k		
-		}
-		
-		drop _al_id
-
-		* Reset the row value
-		local k `row'
-		
-		* Add the concatenate formula	
-		forvalues n = 1/`=_N' {										
-			* Set local to determine how many variables are 
-			* checked for the assertion in row `n'
-			
-			local num =_al_num_var_checked in `n'
-				
-			* Foreach variable that is being checked
-			* Create the concatenate formula
-			* Reset the local b to original value
-			local b `=`=wordcount("`idlist'")' + 5'
-																
-			forvalues i = 1/`num' {
-				
-				* Find the Excel column based on the list local 
-				* created above
-				mata: st_local("L" , invtokens(numtobase26(`=`b'+3')))
-				mata: st_local("L2", invtokens(numtobase26(`=`b'+4')))
-				mata: st_local("L3", invtokens(numtobase26(`b')))
-						
-				local g `=substr("``=_al_var_`i'[`n']''",1,3)'
-				
-				* This will use the var type stored at the 
-				* beginning of the program
-				* Each is named after the var
-				if "`g'" == "str" {							
-						putexcel set "`excel'.xlsx", modify sheet("`sheet'")			
-						putexcel `L2'`k' = formula(=if(`L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ","""",`L'`k',"""",`_al_id_`n'')))
-						
-										
-				}
-				else {
-					putexcel set "`excel'.xlsx", modify sheet("`sheet'")	
-					putexcel `L2'`k' = formula(=if( `L'`k' = "","",CONCATENATE("replace ",`L3'`k'," = ",`L'`k',`_al_id_`n'')))	
-				}
-				
-				local b `=`b'+ 5'
-				
-			}
-			local ++k
-		}
-	
 		* Format the spreadsheet
-		* noi di "Formatting FIX tab..."
+
 		* Identify which columns will be highlighted
 		local hi `=`=wordcount("`idlist'")' + 8'
 		
 		* Format Fix Sheet
-		format_sheet, excel(`excel') sheet(`sheet') highlight(`hi')
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
 	}	
 end		 
 
@@ -760,7 +641,6 @@ program define write_nofix_sheet
 	
 	qui {
 		* Create no fix tab...
-		* noi di as text "Creating No-FIX tab..."
 		
 		* if not fixing...
 		* Export results to nonfix sheet
@@ -813,8 +693,7 @@ program define write_nofix_sheet
 		}
 		
 		* Format tab
-		* noi di as text "Formatting No-FIX tab..."
-		format_sheet, excel(`excel') sheet(`sheet') 
+		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
 	}
 end
 
@@ -824,8 +703,8 @@ end
 ********************************************************************************
 ********************************************************************************
 * Format tabs
-capture program drop format_sheet
-program define format_sheet
+capture program drop format_sheet_v14
+program define format_sheet_v14
 
 	syntax , EXCEL(string asis) SHEET(string asis) [ HIGHLIGHT(integer 0) ] 
 	
@@ -862,8 +741,12 @@ program define format_sheet
 			
 		mata: b.set_sheet("`sheet'")
 		
+		* We want to wrap text for all content after header row
+		* Create local that will do this if after the first row
+		local tw
 		forvalues i = 1/`m_v' {
-			mata: b.set_column_width(`i',`i',`m`i'')
+			if `i' > 1 local tw , txtwrap 
+			mata: b.set_column_width(`i',`i',`m`i'')`tw'
 		}
 			
 		mata: b.set_fill_pattern(1,(1,`m_v'),"solid","lightgray")
@@ -880,13 +763,103 @@ program define format_sheet
 		
 			* Determine which rows need highlighted to pass through
 			local hi
-			forvalues i = `highlight'(5)`m_v' {
+			forvalues i = `highlight'(4)`m_v' {
 				local hi `hi' `i'
 			}
 
 			foreach v in `hi' {
 				mata: b.set_fill_pattern((2,`r_v'),`v',"solid","yellow")
-				mata: b.set_column_width(`=`v'+1',`=`v'+1',20)
+				mata: b.set_column_width(`=`v'-2',`=`v'-2',0)
+			}
+		}
+		
+		mata b.close_book()	
+	}
+end		
+
+********************************************************************************
+********************************************************************************
+******						Format Excel Sheet	for v15					   *****
+********************************************************************************
+********************************************************************************
+* Format tabs
+capture program drop format_sheet_v15
+program define format_sheet_v15
+
+	syntax , EXCEL(string asis) SHEET(string asis) [ HIGHLIGHT(integer 0) ] 
+	
+	qui {
+		* Pull in Excel sheet to format
+		* Grab the Excel data: Row count
+		* use mata to populate table formatting
+		mata: b = xl()
+		mata: b.load_book("`excel'.xlsx")
+		mata: b.set_mode("open")
+		
+		mata: b.set_sheet("`sheet'")
+			
+		* Determine the column widths
+		noi import excel using "`excel'.xlsx", sheet("`sheet'") ///
+		allstring clear
+		describe
+						
+		local m_v=`=r(k)'
+		local r_v=`=r(N)'
+				
+		local i 1
+		foreach v of varlist * {
+			tempvar `v'_l
+			gen ``v'_l'=length(`v')
+			summarize ``v'_l'
+			local m`i'=min(`=`r(max)'+1',25)
+			drop ``v'_l'
+			local ++i
+		}
+		
+		* Create fontid for bold that will be added when appropriate
+		mata: bold = b.add_fontid()
+		mata: b.fontid_set_font_bold(bold, "on")
+		
+		* Add textwrap to all rows
+		mata format_txtwrap = b.add_fmtid()
+		mata: b.set_fmtid((2,`r_v'),(2,`m_v'),format_txtwrap)
+		mata: b.fmtid_set_text_wrap(format_txtwrap, "on")
+				
+		forvalues i = 1/`m_v' {
+			* Create the header format ids
+			mata format_header_`i' = b.add_fmtid()
+			mata: b.set_fmtid(1,`i',format_header_`i')
+			
+			* Since this is row 1, make them shaded, bold and horizontal aligned
+			mata: b.fmtid_set_fontid(format_header_`i', bold)
+			mata: b.fmtid_set_fill_pattern(format_header_`i', "solid","lightgray")
+			mata: b.fmtid_set_horizontal_align(format_header_`i', "left")
+						
+			* Set column width
+			mata format_width_`i' = b.add_fmtid()
+			mata: b.set_fmtid(2,`i',format_width_`i')
+			mata: b.fmtid_set_text_wrap(format_width_`i', "on")
+			mata: b.fmtid_set_column_width(format_width_`i',`i',`i', `m`i'')
+		}
+					
+		* Highlight the correct values yellow
+		if "`highlight'"!="0" {
+		
+			* Determine which rows need highlighted to pass through
+			local hi
+			forvalues i = `highlight'(4)`m_v' {
+				local hi `hi' `i'
+			}
+
+			foreach v in `hi' {
+				* Create fmtid for highlighting
+				mata format_highlight_`v' = b.add_fmtid()
+				mata: b.set_fmtid((2,`r_v'),`v', format_highlight_`v')
+				mata: b.fmtid_set_fill_pattern(format_highlight_`v', "solid","yellow")
+			
+				mata format_hide_`=`v'-2' = b.add_fmtid()
+				mata: b.set_fmtid((1,`r_v'),`=`v'-2',format_hide_`=`v'-2')
+				mata: b.fmtid_set_column_width(format_hide_`=`v'-2',`=`v'-2',`=`v'-2',0)
 			}
 		}
 		mata b.close_book()	
