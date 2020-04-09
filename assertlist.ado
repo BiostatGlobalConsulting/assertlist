@@ -206,11 +206,11 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		
 		* Check that if FIX option is not set, CHECKLIST and IDLIST are empty
 		if "`fix'"=="" & ("`checklist'"!="" | "`idlist'"!="") {
-				noi di as text "Assertlist warning: Ignoring " ///
+				noi di ""
+				noi di as input "Assertlist warning: Assertlist will ignore " ///
 				"CHECKLIST and IDLIST values as they are not used "  ///
-				"with the KEEP option; only  "     ///
-				"used with the FIX option."
-							
+				"with the KEEP option; only used with the FIX option."
+				noi di as text "`msg'"
 				local checklist 
 				local idlist
 		}
@@ -293,10 +293,16 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			bysort `idlist': gen `unique'=_n
 			summarize `unique'
 			
-			if `=r(max)' > 1 noi di as text "Assertlist warning: Variables provided in IDLIST do " ///
+			if `=r(max)' > 1 {
+				noi di ""
+				noi di as input "Assertlist warning: Variables provided in IDLIST do " ///
 			"not uniquely identify each row. The program will continue, but " ///
-			"be aware that this could create undesirable consequences when replacing " ///
-			"the values and we advise that you make the IDLIST unique."
+			"be aware that this could create undesirable consequences when running " ///
+			"assertlist_replace after fixing some of the values; " ///
+			"we advise you to revise the IDLIST."
+			noi di ""
+			noi di as text "`msg'"
+			}
 		}
 	
 		* Set global SEQUENCE to 1 as default
