@@ -1,6 +1,6 @@
 * Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
 * Dale Rhoda
-* March 20, 2020
+* April 09, 2020
 
 * Make sure you are cd in the location you want to run your test as does create output.
 ********************************************************************************
@@ -51,9 +51,16 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
 * to read in these values and make the replacements.
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78)
 
-* Lets rerun the previous test but add a second variable to IDLIST.
+* Lets the first fix test above but add a second variable to IDLIST.
 * This will ERROR out because the IDLIST provided is a different IDLIST then used in the previous line but has the same sheet name.
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+
+* Lets run the previous assertlist but add a LIST option to show more variables
+* This will error as the IDLIST and LIST combination must be the same for it to put on the same tab
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
+
+* Rerun with a new tab
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct_with_list) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
 
 * So we can rerun this by either changing the SHEETNAME or IDLIST
 * In this case we will change the SHEETNAME
@@ -70,7 +77,7 @@ assertlist gear_ratio < 4, list(make gear_ratio)
 * Note that the program makes an entry in the Assertlist_Summary sheet, but does 
 * not make a new sheet named 'no_fails' or no_fails_fix
 assertlist inlist(foreign,1,0), excel(al_xl_demo.xlsx) sheet(no_fails) list(make foreign)
-assertlist gear_ratio < 4, excel(al_xl_demo.xlsx) sheet(no_fails) fix idlist(make) checklist(gear_ratio) tag(Gear ratio higher than expected)
+assertlist gear_ratio < 4, excel(al_xl_demo.xlsx) sheet(no_fails) fix idlist(make) checklist(gear_ratio) list(foreign) tag(Gear ratio higher than expected)
 ********************************************************************************
 * Let's look at an assertion involving an 'if' statement 
 assertlist headroom <= 3 if length <= 180, list(make headroom length)
@@ -79,10 +86,15 @@ assertlist headroom <= 3 if length <= 180, list(make headroom length)
 * the numbers again and possible fix the data. But we don't yet know whether we 
 * will replace the value of headroom or of length, so we list BOTH in the 
 * CHECKLIST option
-
 * Note this will append to the existing want_to_correct_fix tab as the idlist is the same
 assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(headroom length) tag(Headroom seems large for small length)
 
+* If we only want to view the variable in the IF statement we would add it to the LIST option.
+* This will error out though, because we did not put it on a new sheet 
+assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) list(length) checklist(headroom) tag(Headroom seems large for small length)
+
+* Repeat with a new sheet
+assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct3) fix idlist(make) list(length) checklist(headroom) tag(Headroom seems large for small length)
 
 * Finally, here is an example of sending output from several assertions to a 
 * single worksheet which can be used for data cleaning.
@@ -93,17 +105,17 @@ assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_
 * pretend that a data manager might go back and check the large values to 
 * see whether they are correct or mis-typed.
 
-assertlist price < 15900, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(price) tag(Price seems very high)
-assertlist mpg < 40, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(mpg) tag(MPG seems very high)
-assertlist rep78 < 5 if !missing(rep78), excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(rep78) tag(rep78 seems very high)
-assertlist headroom < 5, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(headroom) tag(Head room seems very high)
-assertlist trunk < 22, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(trunk) tag(Trunk space seems very high)
+assertlist price < 15900, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(price) tag(Price seems very high) list(price rep78 gear_ratio)
+assertlist mpg < 40, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(mpg) tag(MPG seems very high) list(price rep78 gear_ratio)
+assertlist rep78 < 5 if !missing(rep78), excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(rep78) tag(rep78 seems very high) list(price rep78 gear_ratio)
+assertlist headroom < 5, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(headroom) tag(Head room seems very high) list(price rep78 gear_ratio)
+assertlist trunk < 22, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(trunk) tag(Trunk space seems very high) list(price rep78 gear_ratio)
 
 * Add a test with a second check variable... This will create var_2* variables
-assertlist trunk < 22, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(trunk mpg) tag(Trunk space seems very high)
+assertlist trunk < 22, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(trunk mpg) tag(Trunk space seems very high) list(price rep78 gear_ratio)
 
 * Add check for missing rep78 so we can add some conflicts
-assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(rep78) tag(rep78 missing)
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(rep78) tag(rep78 missing) list(price rep78 gear_ratio)
 
 * Note that if you sort the output by 'make',
 * the VW Diesel appears twice in the list; it has extreme values 
@@ -175,26 +187,26 @@ foreach v in al_xl_demo_org al_xl_demo_clean al_xl_demo_not_cleaned {
 	 
 	putexcel set "`v'.xlsx", modify sheet("several_tests_fix")
 	* Add replacement values for var 1
-	putexcel I2= 15900, nformat(#)
-	putexcel I4 = 2, nformat(#)
-	putexcel I5 = 3, nformat(#)
-	putexcel I6 = 1, nformat(#)
-	putexcel I7 = 4, nformat(#)
-	putexcel I8 = 4, nformat(#)
-	putexcel I9 = 2, nformat(#)
-	putexcel I10 = 2, nformat(#)
-	putexcel I11 = 1, nformat(#)
-	putexcel I12 = 1, nformat(#)
-	putexcel I13 = 3 , nformat(#)
-	putexcel I14 = 4, nformat(#)
-	putexcel I20 = 3, nformat(#) // conflict from other tab
-	putexcel I21 = 2, nformat(#) // same as other tab
-	putexcel I22 = 5, nformat(#) //conflict from other tab
-	putexcel I23 = 1, nformat(#) //conflict from other tab
-	putexcel I24 = 4, nformat(#) // same as other tab
+	putexcel L4 = 2, nformat(#)
+	putexcel L2= 15900, nformat(#)
+	putexcel L5 = 3, nformat(#)
+	putexcel L6 = 1, nformat(#)
+	putexcel L7 = 4, nformat(#)
+	putexcel L8 = 4, nformat(#)
+	putexcel L9 = 2, nformat(#)
+	putexcel L10 = 2, nformat(#)
+	putexcel L11 = 1, nformat(#)
+	putexcel L12 = 1, nformat(#)
+	putexcel L13 = 3 , nformat(#)
+	putexcel L14 = 4, nformat(#)
+	putexcel L20 = 3, nformat(#) // conflict from other tab
+	putexcel L21 = 2, nformat(#) // same as other tab
+	putexcel L22 = 5, nformat(#) //conflict from other tab
+	putexcel L23 = 1, nformat(#) //conflict from other tab
+	putexcel L24 = 4, nformat(#) // same as other tab
 	
 	* Add replacement values for var 2
-	putexcel M18 = 14, nformat(#)
+	putexcel P18 = 14, nformat(#)
 	putexcel close
 }
 
