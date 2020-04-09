@@ -1,4 +1,4 @@
-*! assertlist version 2.13 - Mary Kay Trimner & Dale Rhoda - 2020-04-09
+*! assertlist version 2.14 - Mary Kay Trimner & Dale Rhoda - 2020-04-09
 *******************************************************************************
 * Change log
 * 				Updated
@@ -39,7 +39,8 @@
 * 2019-04-26	2.11	MK Trimner			Added wrap text in version 14 excel formatting	
 *											Removed code to format and hide replace variables since these were removed		
 * 2020-03-20	2.12	MK Trimner			Cleaned up comments	
-* 2020-04-09	2.13	MK Trimner			Made changes to pass through list option for FIX spreadsheets				
+* 2020-04-09	2.13	MK Trimner			Made changes to pass through list option for FIX spreadsheets	
+* 2020-04-09	2.14	Dale Rhoda 	        Added some space around assertlist warning msgs			
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
