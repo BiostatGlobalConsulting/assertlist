@@ -33,6 +33,9 @@
 *										than values
 * 2019-04-14	1.11	MK Trimner		Removed column for replace statement
 *										and all code related
+* 2020-04-09	1.12	MK Trimner		Added code to allow for LIST option with FIX spreadsheets
+*										changed column width
+*										Added new names for Assertlist Summary tab to show idlist checklist and list values
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -78,11 +81,13 @@ program define assertlist_cleanup
 			local excel `name'
 		}
 
-		* Create a local that will hold the length of each header
-		local passthrough 0
-		local hide 0
+
 		* Go through each of the sheets
 		forvalues b = 1/`f' {
+			
+			* Create a local that will hold the length of each header
+			local passthrough 0
+			local hide 0
 			
 			* Bring in the sheet
 			capture import excel using "`excel'.xlsx", describe
@@ -230,6 +235,11 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		if "``v''"=="number_passed"		local `v' Number That Passed Assertion
 		if "``v''"=="number_failed"		local `v' Number That Failed Assertion
 		if "``v''"=="note1"				local `v' Note
+		if "``v''"=="sheet"			local `v' Sheet Name That Contains Assertion Output
+		if "``v''"=="idlist"		local `v' Variables Provided in IDLIST Option
+		if "``v''"=="list"			local `v' Variables Provided in LIST Option
+		if "``v''"=="checklist"		local `v' Variables Provided in CHECKLIST Option
+
 		if "``v''"=="num_var_checked"	local `v' Number of Variables Checked in Assertion
 		
 		if `max'!=0 {
@@ -258,8 +268,8 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 
 		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
 		
-		if `n'==1 local passthrough `m`n'2'
-		else local passthrough `passthrough' `m`n'2'
+		*if `n'==1 local passthrough `m`n'2'
+		local passthrough `passthrough' `m`n'2'
 	
 		* Pass through the locals
 		foreach v in passthrough hide { 
@@ -310,7 +320,7 @@ program define assertlist_cleanup_format_header
 		
 		forvalues i = 1/`m_v' {
 			* Set column width
-			local width `=`m`i'1'+3'
+			local width = max(`=`m`i'1'+3',10)
 			if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
 			if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
 			mata: b.set_column_width(`i',`i',`=min(30,`width')')
@@ -321,7 +331,7 @@ program define assertlist_cleanup_format_header
 		}
 		
 		* Set the row height 
-		mata: b.set_row_height(1,1,100)
+		mata: b.set_row_height(1,1,150)
 		
 		mata b.close_book()		
 	}
