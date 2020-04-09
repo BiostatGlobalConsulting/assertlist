@@ -1,5 +1,4 @@
-*! assertlist_replace version 1.04 - Biostat Global Consulting - 2020-03-20
-
+*! assertlist_replace version 1.05 - Biostat Global Consulting - 2020-04-09
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
 
@@ -33,6 +32,7 @@
 *										as well as formatting since it is not needed
 *										Removed additional code that was not needed due to this change
 * 2020-03-20	1.04	MK Trimner		Cleaned up comments
+* 2020-04-09	1.05	MK Trimner		Added code to drop the new LIST option from assertlist so it is not included in IDLIST
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -199,7 +199,16 @@ program assertlist_replace_cleanup
 		forvalues i = 1(3)`c' {
 			``i'' ``=`i'+1'' ``=`i'+2''
 		}
-				
+		
+		* Drop the variables from LIST option if specified
+		local droplist
+		foreach v of varlist _al_tag-_al_var_1 {
+				if !inlist("`v'","_al_tag","_al_var_1") local droplist `droplist' `v'
+		}
+		
+		* Now drop the LIST option variables so they are not included in IDLIST
+		capture drop `droplist'
+		
 		* Create a local to grab the id variables
 		local idlist
 		foreach v of varlist * {
@@ -404,13 +413,13 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 		file write replacement " " _n
 		
 		* Now add code to open a dataset and save as new name if provided
-		file write replacement " * Open original Dataset provided:" _n
+		file write replacement "* Open original Dataset provided:" _n
 		if "`dataset1'"!="" file write replacement `" use "`dataset1'", clear"' _n
 		if "`dataset1'"=="" file write replacement `" use "ADD DATASET NAME HERE", clear"' _n
 		file write replacement " " _n
 		
 		* Save file as new name
-		file write replacement " * Save dataset with new name to preserve original values" _n
+		file write replacement "* Save dataset with new name to preserve original values" _n
 		
 		* If a new name is not provided, set as default value
 		if "`dataset2'" == "" local dataset2 dataset_with_replaced_values
