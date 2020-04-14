@@ -71,6 +71,10 @@
 {pmore2} 5. {bf:_al_number_passed}:	--->	{it: Number That Passed Assertion.} {p_end}
 {pmore2} 6. {bf:_al_number_failed}:	--->	{it:Number That Failed Assertion} {p_end}
 {pmore2} 7. {bf:_al_note}:	--->	{it: Note} {p_end}
+{pmore2} 8. {bf:_al_sheet}:	--->	{it: Sheet Name That Contains Assertion Output} {p_end}
+{pmore2} 9. {bf:_al_idlist}:	--->	{it: Variables Provided in IDLIST Option} {p_end}
+{pmore2} 10. {bf:_al_list}:	--->	{it: Variables Provided in LIST Option} {p_end}
+{pmore2} 11. {bf:_al_checklist}:	--->	{it: Variables Provided in CHECKLIST Option} {p_end}
 
 {pmore} Reference {help assertlist##assertlist_summary:ASSERTLIST_SUMMARY} for column value details. {p_end}
 
