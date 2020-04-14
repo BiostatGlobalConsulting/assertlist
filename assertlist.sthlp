@@ -74,10 +74,11 @@
 {pstd} {bf:LIST} - varlist whose contents are displayed in the output window 
        for rows where {bf:exp} is false{p_end}
 
-{pmore} If the {help assertlist##fix:FIX} option is 
-		specified, the {help assertlist##idlist:IDlist} and 
-		{help assertlist##checklist:CHECKlist} options specify which
-		variables are listed, and the {bf:LIST} option is ignored. {p_end}
+{pmore} If the {bf:LIST} option is specified with the {help assertlist##fix:FIX} option,
+		these variables are listed in addition to the variables in the 
+		{help assertlist##idlist:IDlist} and {help assertlist##checklist:CHECKlist}
+		options.
+		{p_end}
 
 {pmore} {bf:NOTE: If {help assertlist##list:LIST} and }
         {bf:{help assertlist##fix:FIX} are not }
@@ -128,6 +129,10 @@
 {pmore2} 5. {bf:_al_number_passed}:	{it: Number of observations for which {cmd:exp} was TRUE.} {p_end}
 {pmore2} 6. {bf:_al_number_failed}:	{it: Number of observations for which {cmd:exp} was FALSE.} {p_end}
 {pmore2} 7. {bf:_al_note}		{it: Note regarding results.} {p_end}
+{pmore2} 8. {bf:_al_sheet}		{it: Name of excel {help assertlist##sheet:SHEET} with results from assertion, if any.} {p_end}
+{pmore2} 9. {bf:_al_idlist}		{it: Variables provided in {help assertlist##idlist:IDlist}, if any.} {p_end}
+{pmore2} 10. {bf:_al_list}		{it: Variables provided in {help assertlist##list:LIST}, if any.} {p_end}
+{pmore2} 11. {bf:_al_checklist}		{it: Variables provided in {help assertlist##checklist:CHECKlist}, if any.} {p_end}
 {pmore} 
 
 {marker sheet}
@@ -140,7 +145,11 @@
 
 {pmore} If the {bf:sheet} already exists, the new output is appended to the existing sheet.{p_end}
 
-{pmore} {bf:Note: Do not include the string {it:"fix"} in any SHEET names as the program uses this to run certain steps.} 
+{pmore} {bf:Note: Do not include the string {it:"fix"} in any SHEET names as the program uses this to run certain steps.} {p_end}
+
+{pmore} {bf:Note: If the {help assertlist##fix:FIX} option is specified, the SHEET can only have 1 set of {help assertlist##idlist:IDlist} and {help assertlist##list:LIST} variables.}
+	{bf:If the user would like to complete an assertion with a different combination of {help assertlist##idlist:IDlist} and {help assertlist##list:LIST} variables}
+	{bf:they will need to create a new SHEET.} {p_end}
 
 {pmore} If the {help assertlist##fix:FIX} option is not specified, 
         {bf:SHEET} will be populated with the following: {p_end}
@@ -173,7 +182,8 @@
 {pmore2} 3. {bf:IDlist variables}: 	{it:One column for each of the variables in {help assertlist##idlist:IDlist}}. {p_end}
 {pmore2} 4. {bf:_al_assertion_that_failed} {it: Contains {cmd:exp} syntax.} {p_end}
 {pmore2} 5. {bf:_al_tag}:		{it:String provided in {help assertlist##tag:TAG}, if any.} {p_end}
-{pmore2} 6. {bf:for each variable in {help assertlist##checklist:CHECKlist}:} {p_end}
+{pmore2} 6. {bf:LIST variables}:	{it: One column for each of the variables in {help assertlist##list:LIST}}.{p_end}
+{pmore2} 7. {bf:for each variable in {help assertlist##checklist:CHECKlist}:} {p_end}
 {pmore3} a. {bf:_al_var_#}:		{it:Variable name} {p_end}
 {pmore3} b. {bf:_al_var_type_#}:	{it:Variable type} {p_end}
 {pmore3} c. {bf:_al_original_var_#}:	{it:Original variable value} {p_end}
@@ -192,6 +202,7 @@
 {pmore} {bf:IDlist} should only be provided if {help assertlist##excel:EXCEL} 
         and {help assertlist##fix:FIX} options are specified; it will otherwise be ignored. 
 		{p_end}
+ 
 {marker checklist}
 {pstd} {bf:CHECKlist} - List of variables used in {cmd:exp} that you may wish to correct later.  
         Every variable listed here will receive extra columns in the spreadsheet to facilitate corrections.{p_end}
