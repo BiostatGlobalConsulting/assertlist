@@ -29,7 +29,7 @@
 	assert command and provides details around WHICH rows failed the assertion, and HOW. {cmd:assertlist_cleanup} takes the excel output from {cmd:assertlist} and adds user friendly column titles and formatting.{p_end}
 
 {pstd} {cmd: assertlist_replace} is to be used after the user has reviewed each failed assertion and added the appropriate values to the {it:correct} columns in the 
-	{cmd:assertlist} or {cmd: assertlist_cleanup} excel file. This program then puts each populated value in a replace statement statement from all {help assertlist##fix:FIX} tabs 
+	{cmd:assertlist} or {cmd: assertlist_cleanup} excel file. This program then puts each populated value in a replace statement from all {help assertlist##fix:FIX} tabs 
 	directly into a .do file. Comments are added to show the sheetname, failed assertion and tag for each replace statement.
 	{p_end}
 
