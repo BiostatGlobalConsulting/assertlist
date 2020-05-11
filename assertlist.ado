@@ -1,4 +1,4 @@
-*! assertlist version 2.13 - Mary Kay Trimner & Dale Rhoda - 2020-04-09
+*! assertlist version 2.13 - Mary Kay Trimner & Dale Rhoda - 2020-04-29
 *******************************************************************************
 * Change log
 * 				Updated
@@ -39,7 +39,9 @@
 * 2019-04-26	2.11	MK Trimner			Added wrap text in version 14 excel formatting	
 *											Removed code to format and hide replace variables since these were removed		
 * 2020-03-20	2.12	MK Trimner			Cleaned up comments	
-* 2020-04-09	2.13	MK Trimner			Made changes to pass through list option for FIX spreadsheets				
+* 2020-04-09	2.13	MK Trimner			Made changes to pass through list option for FIX spreadsheets	
+* 2020-04-29	2.13	MK Trimner			Added code to create sheetname with $SEQUENCE number if not provided
+*											Added nolabel option for exporting during all for consistency		
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -179,16 +181,14 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 				
 		* If EXCEL is populated, make sure sheet is populated
 		if "`excel'" != "" & "`sheet'" == "" {
-			noi di as error "Assertlist error: You must specify the SHEET " ///
-							"option with the EXCEL option."
+			noi di as text "Assertlist warning: Since option SHEET was not provided the SHEET will be populated with ASSERTION CHECK SEQUENCE number." 
 			noi di as text "`msg'"
-			local exitflag 1
 		}
 		
 		* If FIX is populated, check required variables
-		if "`fix'"!="" & ("`idlist'"=="" | "`checklist'"=="" | "`excel'"=="" | "`sheet'"=="") {
+		if "`fix'"!="" & ("`idlist'"=="" | "`checklist'"=="" | "`excel'"=="" ) {
 			noi di as error "Assertlist error: You must specify the " ///
-							"IDLIST, CHECKLIST, EXCEL and SHEET options with the FIX option."
+							"IDLIST, CHECKLIST, and EXCEL options with the FIX option."
 			noi di as text "`msg'"
 							
 			local exitflag 1
@@ -339,6 +339,9 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 				summarize _al_check_sequence
 				global SEQUENCE `=r(max) + 1'
 			}
+			
+			* check to see if SHEET needs to be changed to SEQUENCE NUMBER
+			if inlist("`sheet'","_fix","") local sheet $SEQUENCE
 			
 			* If SHEET does not exist, set local ROW to 2
 			if `sheetexists'==0 local row 2
@@ -600,7 +603,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 						   "`excel'.xlsx sheet(`sheet')." 
 			
 			export excel using "`excel'.xlsx", sheet("`sheet'") sheetmodify ///
-				cell(A`row') datestring("%tdDD/Mon/CCYY") 
+				cell(A`row') datestring("%tdDD/Mon/CCYY") nolabel
 				
 			* Export all the variable names 
 			unab newvarlist: _all
@@ -678,7 +681,7 @@ program define write_nofix_sheet
 			* If the Excel sheet already exists append new results 
 			* to existing spreadsheet
 			export excel using "`excel'.xlsx", sheet("`sheet'") ///
-				sheetmodify cell(A`row') datestring("%tdDD/Mon/CCYY") 
+				sheetmodify cell(A`row') datestring("%tdDD/Mon/CCYY") nolabel
 				
 			* Now do a putexcel to place the varnames
 			* Create new local to be all varlist
