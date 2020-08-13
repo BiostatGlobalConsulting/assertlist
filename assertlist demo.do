@@ -1,6 +1,6 @@
 * Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
 * Dale Rhoda
-* April 09, 2020
+* August 08, 2020
 
 * Make sure you are cd in the location you want to run your test as does create output.
 ********************************************************************************
@@ -8,7 +8,7 @@
 * We want to first wipe out any that may already be existing in the current directory
 * For this demo we want to erase any old excel files 
 * Start with an empty Excel files
-foreach f in al_xl_demo al_xl_demo_not_cleaned al_xl_demo_clean al_xl_demo_clean_and_sorted al_xl_demo_org {
+foreach f in al_xl_demo al_xl_demo_not_cleaned al_xl_demo_clean al_xl_demo_clean_and_sorted al_xl_demo_org al_xl_demo_with_id_tab {
 	capture erase `f'.xlsx
 }
 
@@ -43,6 +43,13 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
 * And the tag will be included in both the Assertlist_Summary and do_not_want_to_correct tabs.
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) list(make rep78) tag(Missing value for rep78)
 
+* Add "_fix" to the end of the SHEET name.
+* this will ERROR out as this is not acceptable
+* assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_fix) list(make rep78) tag(Missing value for rep78)
+
+* But if we add the FIX option.. the SHEET name can include FIX in it
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_fix) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+
 * If we want to be able to go back and put in a corrected value specify the FIX
 * This creates extra spreadsheet columns for all variables provided in CHECKLIST
 * The sheet will include "_fix" at the end
@@ -53,11 +60,11 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix id
 
 * Lets the first fix test above but add a second variable to IDLIST.
 * This will ERROR out because the IDLIST provided is a different IDLIST then used in the previous line but has the same sheet name.
-assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+* assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
 
 * Lets run the previous assertlist but add a LIST option to show more variables
-* This will error as the IDLIST and LIST combination must be the same for it to put on the same tab
-assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
+* This will ERROR as the IDLIST and LIST combination must be the same for it to put on the same tab
+* assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
 
 * Rerun with a new tab
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct_with_list) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
@@ -66,6 +73,14 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct_with_li
 * In this case we will change the SHEETNAME
 * The sheet will include "_fix" at the end
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct2) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+
+* If sheet is not provided, then the program will use the assertion number for the sheetname
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) list(make price rep78) tag(Missing value for rep78)
+
+* If sheet is not provided, then the program will use the assertion number for the sheetname
+* When fix is specified, suffix _fix will be added
+* We will also list gear ratio
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) idlist(make price) check(rep78) list(gear_ratio) tag(Missing value for rep78) fix
 
 ********************************************************************************
 * Assertions where all lines pass
@@ -90,8 +105,8 @@ assertlist headroom <= 3 if length <= 180, list(make headroom length)
 assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(headroom length) tag(Headroom seems large for small length)
 
 * If we only want to view the variable in the IF statement we would add it to the LIST option.
-* This will error out though, because we did not put it on a new sheet 
-assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) list(length) checklist(headroom) tag(Headroom seems large for small length)
+* This will ERROR out though, because we did not put it on a new sheet 
+* assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) list(length) checklist(headroom) tag(Headroom seems large for small length)
 
 * Repeat with a new sheet
 assertlist headroom <= 3 if length <= 180, excel(al_xl_demo.xlsx) sheet(want_to_correct3) fix idlist(make) list(length) checklist(headroom) tag(Headroom seems large for small length)
@@ -133,24 +148,37 @@ copy "al_xl_demo.xlsx" "al_xl_demo_org.xlsx", replace
 copy "al_xl_demo.xlsx" "al_xl_demo_not_cleaned.xlsx", replace
 
 ********************************************************************************
-
+********************************************************************************
+* Now we will run the program to grab all the ids from each tab and put them in 1 tab
+* Users can opt to create a new excel file or add it to the existing excel file.
+* This will run the spreadsheet that has not been cleaned first.
+ assertlist_export_ids, excel(al_xl_demo)
+  
+ ********************************************************************************
 * Once you have completed all potential assertions and BEFORE
 * going back to the source to check the data, you can run the 
 * assertlist_cleanup program to format columns and insert user friendly column headers.
 
 * The first time through we will specify the required EXCEL option
 * and optional NAME to preserve the original spreadsheet.
+* This sheet has an ID tab
 assertlist_cleanup, excel(al_xl_demo.xlsx) name(al_xl_demo_clean.xlsx)
 
 * Next we will also specify the optional IDSORT option so that all sheets are
 * sorted by the IDLIST provided in the original assertion. 
 * This automatically does the sort by `make' mentioned above.
-assertlist_cleanup, excel(al_xl_demo.xlsx) name(al_xl_demo_clean_and_sorted.xlsx) idsort
+assertlist_cleanup, excel(al_xl_demo_org.xlsx) name(al_xl_demo_clean_and_sorted.xlsx) idsort
 
 * Lastly we will only specify the required EXCEL option.
 * This will overwrite the original EXCEL file with the cleaned up sheets.
-* so we can show how assertlist_replace can be used on either EXCEL files. 
+* so we can show how assertlist_replace can be used on either EXCEL files.
+* This also shows how the ID tab will be cleaned up 
 assertlist_cleanup, excel(al_xl_demo.xlsx)
+
+ ********************************************************************************
+* Run the assertlist_export_ids on a cleaned dataset
+* This will also add the cleaned up headers to the new ID tab
+assertlist_export_ids, excel(al_xl_demo_clean_and_sorted.xlsx)
 
 ********************************************************************************
 * To show an example of assertlist_replace we will need to add some values to 
@@ -241,4 +269,7 @@ assertlist_replace, excel(al_xl_demo_clean) dofile(al_xl_demo_clean_replace_comm
 assertlist_replace, excel(al_xl_demo_clean) dofile(al_xl_demo_clean_replace_commands_with_comment) ///
 	reviewer(NAME HERE) date(2020-03-20) dataset1(auto) dataset2(auto_replace) ///
 	comments(These values were selected at random for example purposes and the changes should not be implemented in the auto dataset.)
+	
+
+
 	

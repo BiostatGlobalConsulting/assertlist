@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.11 - Biostat Global Consulting - 2019-04-17
+*! assertlist_cleanup version 1.13 - Biostat Global Consulting - 2020-08-13
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -36,6 +36,8 @@
 * 2020-04-09	1.12	MK Trimner		Added code to allow for LIST option with FIX spreadsheets
 *										changed column width
 *										Added new names for Assertlist Summary tab to show idlist checklist and list values
+* 2020-08-13	1.13	MK Trimner		Added code to cleanup ID tab if populated
+*										Changed syntax check for "fix" tabs
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -94,55 +96,59 @@ program define assertlist_cleanup
 			
 			* Capture the sheet name			
 			local sheet `=r(worksheet_`b')'
+			
+			if "`sheet'" == "List of IDs failed assertions" assertlist_cleanup_id_tab, excel(`excel') sheet(`sheet')
+			else {
 		
-			* Import file
-			noi di as text "Importing excel sheet: `sheet'..."
-			import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
-			
-			* Grab column count
-			qui describe
-			local columns = r(k)
-			
-			* Create a local with the cell range for sheet
-			local range `=r(range_`b')'
+				* Import file
+				noi di as text "Importing excel sheet: `sheet'..."
+				import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
 				
-			* Set local for max number of vars checked
-			local max 0
-			
-			* If it is a fix sheet, sort the variables by id
-			if "`=strpos("`sheet'","fix")'" !="0" {
-			
-				* Grab the max number of vars checked
-				qui {
-					capture confirm var _al_num_var_checked
-					if _rc==0 {
-						tempvar num_var_checked_l
-						destring _al_num_var_checked, gen(`num_var_checked_l')
-						qui summarize `num_var_checked_l'
-						local max `=r(max)'
-						drop `num_var_checked_l'
+				* Grab column count
+				qui describe
+				local columns = r(k)
+				
+				* Create a local with the cell range for sheet
+				local range `=r(range_`b')'
+					
+				* Set local for max number of vars checked
+				local max 0
+				
+				* If it is a fix sheet, sort the variables by id
+				if lower(substr("`sheet'",-4,.)) == "_fix" {
+				
+					* Grab the max number of vars checked
+					qui {
+						capture confirm var _al_num_var_checked
+						if _rc==0 {
+							tempvar num_var_checked_l
+							destring _al_num_var_checked, gen(`num_var_checked_l')
+							qui summarize `num_var_checked_l'
+							local max `=r(max)'
+							drop `num_var_checked_l'
+						}
 					}
+					if "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet')  max(`max')
 				}
-				if "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet')  max(`max')
-			}
-	
-			* Remove _al from var names
-			local n 1
-
-			noi di as text "Renaming variables and formatting columns..."
-			foreach v of varlist * {
-				
-				* Rename all the variables
-				assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
-					max(`max') var(`v') passthrough(`passthrough') hide(`hide')
-							
-				local ++n
-			}
-			
-		* Format header row for each tab
-		assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
-			passthrough(`passthrough') hide(`hide')
 		
+				* Remove _al from var names
+				local n 1
+
+				noi di as text "Renaming variables and formatting columns..."
+				foreach v of varlist * {
+					
+					* Rename all the variables
+					assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
+						max(`max') var(`v') passthrough(`passthrough') hide(`hide')
+								
+					local ++n
+				}
+				
+			* Format header row for each tab
+			assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
+				passthrough(`passthrough') hide(`hide')
+			
+			}
 		}
 	}
 
@@ -241,7 +247,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		if "``v''"=="checklist"		local `v' Variables Provided in CHECKLIST Option
 
 		if "``v''"=="num_var_checked"	local `v' Number of Variables Checked in Assertion
-		
+				
 		if `max'!=0 {
 			forvalues i = 1/`max' {
 				if "``v''"=="var_`i'"			local `v' Name of Variable `i'  Checked in Assertion
@@ -331,10 +337,60 @@ program define assertlist_cleanup_format_header
 		}
 		
 		* Set the row height 
-		mata: b.set_row_height(1,1,150)
+		mata: b.set_row_height(1,1,80)
 		
 		mata b.close_book()		
 	}
+	
 end
 
+********************************************************************************
+********************************************************************************
+******						Rename Excel Variables 						   *****
+********************************************************************************
+********************************************************************************
+capture program drop assertlist_cleanup_id_tab
+program define assertlist_cleanup_id_tab
 
+syntax  , EXCEL(string asis) SHEET(string asis) 
+
+	qui {
+	    
+		* Import file
+		noi di as text "Importing excel sheet: `sheet'..."
+		import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
+	    		
+		destring _al_number_assertions_failed, replace
+										
+		summarize _al_number_assertions_failed
+		local max = r(max)
+		
+		foreach v of varlist* {
+		    
+			local `v' `v'
+			if "`v'" == "_al_idlist" 				local _al_idlist 							List of Variables Used to Identify Line in Assertion
+			if "`v'" == "_al_number_assertions_failed" 	local _al_number_assertions_failed 		Number of Assertions Line Failed
+		}
+		
+		forvalues i = 1/`max' {
+		    local abbreviation st
+			if `=substr("`i'",-1,1)' == 2 local abbreviation nd
+			if `=substr("`i'",-1,1)' == 3 local abbreviation rd
+			if inlist("`=substr("`i'",-1,1)'","4","5","6","7","8","9","0") local abbreviation th
+			if `i' >= 11 & `i' <= 19 local abbreviation th
+		    local _al_assertion_details`i' Assertion Tag or Syntax for `i'`abbreviation' Failed Assertion
+		}
+		
+		* Put the new variable name into excel file
+		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
+		
+		local n 1
+		foreach v of varlist* {
+		    			
+		   	mata: st_local("xlcolname", invtokens(numtobase26(`n')))
+			putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			
+			local ++n
+		}
+	}
+end

@@ -42,7 +42,9 @@
 * 2020-04-09	2.13	MK Trimner			Made changes to pass through list option for FIX spreadsheets	
 * 2020-04-09	2.14	Dale Rhoda 	        Added some space around assertlist warning msgs			
 * 2020-04-29	2.15	MK Trimner			Added code to create sheetname with $SEQUENCE number if not provided
-*											Added nolabel option for exporting during all for consistency		
+*											Added nolabel option for exporting during all for consistency	
+* 2020-08-04	2.16	MK Trimner			Added check to make sure sheet name does not end in fix
+*											cleaned up syntax to see if is an assertlist "fix" tab	
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -51,7 +53,7 @@ program assertlist
 	version 11.1
 	syntax anything(name=assertion equalok everything) [, KEEP(varlist) ///
 	       LIST(varlist) IDlist(varlist) CHECKlist(varlist) TAG(string) ///
-		   EXCEL(string asis) SHEET(string asis) FIX]
+		   EXCEL(string asis) SHEET(string asis) FIX IDS ]
 	
 	
 	preserve
@@ -71,7 +73,7 @@ program assertlist
 		 * The first will check all input options
 		 noi check_options, keep(`keep') list(`list') ///
 			   idlist(`idlist') checklist(`checklist') ///
-			   excel(`excel') sheet(`sheet') `fix' hold(`hold')
+			   excel(`excel') sheet(`sheet') `fix' hold(`hold') `ids'
 			   
 		* If everything passes the check
 		* use `hold' file and generate assertion
@@ -145,6 +147,9 @@ program assertlist
 			* If EXCEL is specified, but not FIX
 			if "`excel'"!="" & "`fix'"=="" noi write_nofix_sheet, excel(`excel') ///
 			sheet(`sheet') sheetexists(`sheetexists') row(`row') orgvarlist(`orgvarlist')
+			
+			* Expor the list of ids if specified
+			if "`excel'"!="" & "`ids'"!="" noi write_ids_sheet, excel(`excel')
 		}
 			
 		* Bring back original dataset to Stata
@@ -192,6 +197,16 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 							"IDLIST, CHECKLIST, and EXCEL options with the FIX option."
 			noi di as text "`msg'"
 							
+			local exitflag 1
+		}
+		
+		* Check that user does not use FIX as ending of sheet name
+		if lower(substr("`sheet'",-4,.)) == "_fix" & "`fix'" == "" {
+		    noi di as error `"SHEET cannot end with the suffix "_fix" as this "' ///
+							"is used by the assertlist program to identify tabs"
+							
+			noi di as text "`msg'"
+			
 			local exitflag 1
 		}
 				
@@ -348,7 +363,8 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			}
 			
 			* check to see if SHEET needs to be changed to SEQUENCE NUMBER
-			if inlist("`sheet'","_fix","") local sheet $SEQUENCE
+			if "`sheet'" == "" 		local sheet $SEQUENCE
+			if "`sheet'" == "_fix" 	local sheet ${SEQUENCE}_fix
 			
 			* If SHEET does not exist, set local ROW to 2
 			if `sheetexists'==0 local row 2
@@ -712,6 +728,104 @@ program define write_nofix_sheet
 		* Format tab
 		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
 	}
+end
+
+********************************************************************************
+********************************************************************************
+******		Write IDs that failed asserction to single Tab				   *****
+********************************************************************************
+********************************************************************************
+
+capture program drop write_ids_sheet
+program define write_ids_sheet
+
+	syntax, EXCEL(string asis)
+	
+	* Now lets create a single dataset with the cards that need reviewed
+	capture import excel using "`excel'.xlsx", describe
+	local f `=r(N_worksheet)'
+
+	forvalues b = 2/`f' {
+				
+		* Bring in the sheet
+		capture import excel using "`excel'.xlsx", describe
+				
+		* Capture the sheet name			
+		local sheet `=r(worksheet_`b')'
+			
+		* Import file
+		noi di as text "Importing excel sheet: `sheet'..."
+		import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
+		
+		keep RI01 RI03 RI11 RI12 _al_tag _al_check_sequence
+		duplicates drop
+		if `b' > 2 {
+			append using assertion_ids_for_review
+			duplicates drop
+		}
+		save assertion_ids_for_review, replace
+	}
+
+	* replace tag value
+	replace _al_tag = _al_check_sequence + " : " + _al_tag
+	rename _al_tag assertion_details
+
+	destring _al_check_sequence RI01 RI03, replace
+	sort RI01 RI03 RI11 RI12 _al_check_sequence, stable
+	bysort RI01 RI03 RI11 RI12: gen n = _n
+
+	drop _al_check_sequence
+	reshape wide assertion_details, i(RI01 RI03 RI11 RI12) j(n)
+
+	* create count of the number of assertions failed
+	gen number_assertions_failed = 0
+	label var number_assertions_failed "Total Number of assertions that child failed"
+	foreach v of varlist assertion_details* {
+		replace number_assertions_failed = number_assertions_failed + 1 if !missing(`v')
+	}
+
+	order number_assertions_failed, after(RI12)
+	compress
+	save assertion_ids_for_review, replace
+
+	export excel using "`excel'.xlsx", firstrow (var) sheet("List of IDs failed assertions", replace) nolabel
+
+	*******************************************************************************
+	* Format the excel spreadsheet
+	describe
+	local col `=r(k)'
+	local row `=r(N)+1'
+
+	local i 1
+	foreach v of varlist * {
+		tostring `v', replace
+		tempvar `v'_l
+		gen ``v'_l'=length(`v')
+		summarize ``v'_l'
+		local m`i'=min(`=`r(max)'+5',20)
+		drop ``v'_l'
+		local ++i
+	}
+
+
+	* Now format the excel
+	mata: b = xl()
+	mata: b.load_book("`excel'.xlsx")
+	mata: b.set_mode("open")
+	mata: b.set_sheet("List of IDs failed assertions")
+
+
+	forvalues i = 1/`col' {
+		mata: b.set_column_width(`i',`i', `m`i'')
+		mata: b.set_text_wrap((2,`row'),`i',"on")
+	}
+
+	mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
+	mata: b.set_font_bold(1,(1,`col'),"on")
+	mata: b.set_horizontal_align(1,(1,`col'),"left")
+
+	mata b.close_book()	
+
 end
 
 ********************************************************************************
