@@ -106,6 +106,19 @@
           
 {pmore} Reference {help assertlist##fix:FIX} for column value details. {p_end}
 
+{dlgtab:List of IDs failed assertions tab}
+
+{pmore}	{bf:{cmd:ASSERTLIST} Original Column Name}     --->     {it:{cmd:ASSERTLIST_CLEANUP} New Column Name} {p_end}
+
+{pmore2} 1. {bf:_al_idlist}:	--->	{it: List of Variables Used to Identify Line in Assertion} {p_end}
+{pmore2} 2. {bf:_al_number_assertions_failed}:	--->	{it:Number of Assertions Line Failed} {p_end}
+{pmore2} 3. {bf:for each number of failed assertions in _al_number_assertions_failed:}{p_end}
+{pmore2} {bf:NOTE:# will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
+{pmore3} a. {bf:_al_assertion_details#}:	--->	{it:Assertion Tag or Syntax for # Failed Assertion} {p_end}
+
+{pmore} Reference {help assertlist_export_ids} for column value details. {p_end}
+
+{pmore2} {bf:NOTE: This tab is only present if {help assertlist_export_ids} ran prior to {bf:assertlist_cleanup}}.{p_end}
 {hline}
 
 {title:Authors}
@@ -115,14 +128,17 @@ Mary Kay Trimner & Dale Rhoda, Biostat Global Consulting
 
 Email {browse "mailto:Dale.Rhoda@biostatglobal.com":Dale.Rhoda@biostatglobal.com}
 
-Biostat Global Consulting has also created two additional programs that go along with {cmd:assertlist_cleanup} : 
+Biostat Global Consulting has also created three additional programs that go along with {cmd:assertlist_cleanup} : 
 {pstd} {help assertlist} : Initial program that must be run prior to running {cmd:assertlist_cleanup}. {p_end}
 {pmore} {cmd:Assertlist}  List observations that contradict an assert command. {p_end}
-
-{pstd} {help assertlist_replace} - To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}. {p_end}
-{pmore} Pulls all populated corrected variable values from {cmd:assertlist}/{cmd:assertlist_cleanup} {it:fix} worksheets and puts them in a .do file as replace statements. {p_end}
+{pstd} {help assertlist_export_ids} - Provides a high level overview of results by creating a new excel tab within the assertion spreadsheet. 
+				  This tab has a single row for each ID that fail 1 or more assertions with columns showing which assertions they failed. {p_end}
+{pmore3}{bf: NOTE:To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}}. {p_end}
+{pstd} {help assertlist_replace} - Pulls all populated corrected variable values from fix worksheets within an assertlist spreadsheet and puts them in a .do file as replace statements. {p_end}
+{pmore3}{bf: NOTE:To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}}. {p_end}
 
 {title:See Also}
 {help assert}
 {help assertlist}
+{help assertlist_export_ids}
 {help assertlist_replace}

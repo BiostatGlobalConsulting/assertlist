@@ -97,7 +97,8 @@ program define assertlist_replace
 			local sheet `=r(worksheet_`b')'
 		
 			* If they are, pull the replace statements
-			if "`=strpos("`sheet'","fix")'"!="0" {
+			if lower(substr("`sheet'",-4,.)) == "_fix" {
+			*if "`=strpos("`sheet'","fix")'"!="0" {
 			
 				* Import file
 				noi di as text "Importing excel sheet: `sheet'..."
