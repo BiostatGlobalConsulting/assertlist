@@ -129,9 +129,10 @@ Mary Kay Trimner & Dale Rhoda, Biostat Global Consulting
 Email {browse "mailto:Dale.Rhoda@biostatglobal.com":Dale.Rhoda@biostatglobal.com}
 
 Biostat Global Consulting has also created three additional programs that go along with {cmd:assertlist_cleanup} : 
-{pstd} {help assertlist} : Initial program that lists observations that contradict an assert command. {p_end}
-{pstd} {help assertlist_export_ids} - Provides a high level overview of results by creating a new excel tab within the spreadsheet. 
-				  The new tab has a single row for each ID that failed 1 or more assertions with columns showing which assertions they failed. {p_end}
+{pstd} {help assertlist} : Initial program that must be run prior to running {cmd:assertlist_cleanup}. {p_end}
+{pmore} {cmd:Assertlist}  List observations that contradict an assert command. {p_end}
+{pstd} {help assertlist_export_ids} - Provides a high level overview of results by creating a new excel tab within the assertion spreadsheet. 
+				  This tab has a single row for each ID that fail 1 or more assertions with columns showing which assertions they failed. {p_end}
 {pmore3}{bf: NOTE:To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}}. {p_end}
 {pstd} {help assertlist_replace} - Pulls all populated corrected variable values from fix worksheets within an assertlist spreadsheet and puts them in a .do file as replace statements. {p_end}
 {pmore3}{bf: NOTE:To be run after {cmd:assertlist}/{cmd:assertlist_cleanup}}. {p_end}
