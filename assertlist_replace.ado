@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.05 - Biostat Global Consulting - 2020-04-09
+*! assertlist_replace version 1.06 - Biostat Global Consulting - 2020-09-14
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
 
@@ -33,6 +33,11 @@
 *										Removed additional code that was not needed due to this change
 * 2020-03-20	1.04	MK Trimner		Cleaned up comments
 * 2020-04-09	1.05	MK Trimner		Added code to drop the new LIST option from assertlist so it is not included in IDLIST
+* 2020-09-14	1.06	MK Trimner		Added code to allow for user to set value to missing using !MISSING!
+*										This involved multiple changes throughout the program
+*										Removed extra spaces in syntax written to .do file
+*										Added two lines of ** at the top of .do file and cleaned up some comments
+*										Cleaned up code to remove extra spaces
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -88,6 +93,7 @@ program define assertlist_replace
 				
 		* Open post file 
 		capture postclose mkt
+		capture erase fix
 		postfile mkt str100(sheet) float(sheetnum row varnum) str1000(tif trif assertion tag replacement varname) using fix, replace
 
 		* Go through each of the sheets to determine if they are fix
@@ -98,8 +104,7 @@ program define assertlist_replace
 		
 			* If they are, pull the replace statements
 			if lower(substr("`sheet'",-4,.)) == "_fix" {
-			*if "`=strpos("`sheet'","fix")'"!="0" {
-			
+
 				* Import file
 				noi di as text "Importing excel sheet: `sheet'..."
 				import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear
@@ -122,6 +127,7 @@ program define assertlist_replace
 		
 		* If there are lines left move on to the next steps
 		if `cleanup'==1 & `=_N' > 0 {
+			
 			* Identify duplicates and conflicts
 			assertlist_replace_conflict
 				
@@ -133,7 +139,7 @@ program define assertlist_replace
 			assertlist_replace_commands, num(`c')
 			
 			* Add final save to .DO file
-			file write replacement " save, replace" _n
+			file write replacement "save, replace" _n
 			capture file close replacement
 		}
 		else noi di as error "No corrected values provided in spreadsheet."
@@ -164,7 +170,6 @@ program assertlist_replace_cleanup
 		* Create local with name of variables to drop and rename
 		local droplist
 		local renamelist
-		
 		foreach v of varlist * {
 			if strpos("`: var label `v''","Name of Variable") > 0 {
 				local renamelist `renamelist' rename `v' _al_var_`1' 
@@ -189,9 +194,9 @@ program assertlist_replace_cleanup
 			}
 			
 			if "`v'"=="UserSpecifiedAdditionalInform" rename `v' _al_tag
-			if "`v'"=="AssertionSyntaxThatFailed" rename `v' _al_assertion_syntax
-			if "`v'"=="AssertionCompletedSequenceNum" rename `v' _al_check_sequence
-			if "`v'"=="NumberofVariablesCheckedinA" rename `v' _al_num_var_checked
+			if "`v'"=="AssertionSyntaxThatFailed" rename 	`v' _al_assertion_syntax
+			if "`v'"=="AssertionSequenceNumber" rename 		`v' _al_check_sequence
+			if "`v'"=="NumberofVariablesCheckedinA" rename 	`v' _al_num_var_checked
 		}
 				
 		* split up the rename local to execute each command
@@ -221,9 +226,7 @@ program assertlist_replace_cleanup
 			destring `v', replace
 		}
 		
-		if "`droplist'"=="" local droplist _al_original_* _al_var_type_*
-				
-			
+		if "`droplist'"=="" local droplist _al_original_* _al_var_type_*	
 		* Run subprogram to populate replace statements in dataset and excel file
 		assertlist_pop_replace_statement, idlist(`idlist') //sheet(`sheet') excel(`excel') 
 				
@@ -260,8 +263,8 @@ program assertlist_replace_cleanup
 			forvalues n = 1/`=_al_num_var_checked[`i']' {
 				local tifvar `=_al_var_`n'[`i']' 
 				local tifvarval `=_al_correct_var_`n'[`i']'
-							
-				if !inlist("`tifvarval'","",".") ///
+
+				if `"`=_al_replace_var_`n'[`i']'"' != "" ///
 					post mkt (`"`sheet'"') (`sheetnum') (`i') (`n') (`"`tifvar' `=tif[`i']'"') ///
 					(`"`tifvar' `tifvarval' `=tif[`i']'"') (`"`=_al_assertion_syntax[`i']'"') ///
 					(`"`=_al_tag[`i']'"') (`"`=_al_replace_var_`n'[`i']'"') (`"`=_al_var_`n'[`i']'"')
@@ -297,37 +300,41 @@ program assertlist_pop_replace_statement
 		
 		qui summarize _al_num_var_checked
 		forvalues i = 1/`=r(max)' {
-			
-			gen _al_replace_var_`i'=""
+		    * Wipe out the values if !MISSING! used in correct value so the replace statment will make it missing
+			if "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str"{
+			    qui count if _al_correct_var_`i' == "!MISSING!"
+				if r(N) > 0 {
+				    replace _al_correct_var_`i' = `""""' if _al_correct_var_`i' == "!MISSING!" &  substr(_al_var_type_`i',1,3) == "str"
+					replace _al_correct_var_`i' = "." if _al_correct_var_`i' == "!MISSING!" &  substr(_al_var_type_`i',1,3) != "str"
+				}
+			}
+
+		    gen _al_replace_var_`i'=""
 
 			* Try to remove the line by line replace statements
 			forvalues n = 1/`=_N' {
 				if !missing(_al_correct_var_`i') in `n' {
 					* Need to account for 4 different types of replace statements
 					* Variable being replaced and Corrected Variable are both Strings
-					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" ///
-						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`:type _al_correct_var_`i''",1,3)'"=="str" { 
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
 						+ `"""' + "`=_al_correct_var_`i'[`n']'" + `"""' + " " in `n'  
 					}
 					
 					* Variable being replace is String but Corrected Variable is Numeric
-					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
-						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
-						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']'  = " ///
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"=="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" {
+						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
 						+ `"""' + string(`=_al_correct_var_`i'[`n']') + `"""' + " " in `n'  
 					}
 					
 					* Variable being replaced and Corrected Variable are both Numeric
-					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" ///
-						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"!="str" { 
 						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
 						+ string(`=_al_correct_var_`i'[`n']') + " " in `n'  
 					}
 					
 					* Variable being replaced is Numeric but Corrected Variable is String
-					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"=="str" ///
-						& !inlist("`=_al_correct_var_`i'[`n']'","",".") {
+					if "`=substr(_al_var_type_`i'[`n'],1,3)'"!="str" & "`=substr("`: type _al_correct_var_`i''",1,3)'"=="str" {
 						replace _al_replace_var_`i' = "replace `=_al_var_`i'[`n']' = " ///
 						+ "`=_al_correct_var_`i'[`n']'" + " " in `n'  
 					}
@@ -338,7 +345,9 @@ program assertlist_pop_replace_statement
 			}
 		}
 	}
+	
 end
+
 ********************************************************************************
 ********************************************************************************
 ******					Identify conflicting replace statement	 		  *****
@@ -395,7 +404,9 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 								
 	* Open .DO file
 	file open replacement using `dofile'.do, text write replace
-	file write replacement "* This program was automatically written by assertlist_replace command." _n
+	file write replacement "********************************************************************************" _n
+	file write replacement "********************************************************************************" _n
+	file write replacement "* This program was automatically written by the assertlist_replace command." _n
 	file write replacement " " _n
 	file write replacement "* This program will be used to run the replace commands from" _n
 
@@ -415,8 +426,8 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 		
 		* Now add code to open a dataset and save as new name if provided
 		file write replacement "* Open original Dataset provided:" _n
-		if "`dataset1'"!="" file write replacement `" use "`dataset1'", clear"' _n
-		if "`dataset1'"=="" file write replacement `" use "ADD DATASET NAME HERE", clear"' _n
+		if "`dataset1'"!="" file write replacement `"use "`dataset1'", clear"' _n
+		if "`dataset1'"=="" file write replacement `"use "ADD DATASET NAME HERE", clear"' _n
 		file write replacement " " _n
 		
 		* Save file as new name
@@ -425,7 +436,7 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 		* If a new name is not provided, set as default value
 		if "`dataset2'" == "" local dataset2 dataset_with_replaced_values
 		
-		file write replacement `" save "`dataset2'", replace "' _n
+		file write replacement `"save "`dataset2'", replace "' _n
 		file write replacement " " _n
 	
 		* Add the comments if provided
@@ -511,22 +522,22 @@ program assertlist_replace_commands
 			save "`data'", replace
 			foreach v in `g' {
 				use "`data'", clear
-		
-				keep if assertion=="`v'"
+				
+				keep if assertion==`"`v'"'
 
 				local tag 
 				if !inlist("`=tag[1]'","",".")  local tag / Tag: `=tag[1]'
 			
 				qui count 
-				if r(N) > 0 {
+				if `=r(N)' > 0 {
 					file write replacement "* Replacements made because:" _n
 					file write replacement "* Failed assertion: `=assertion[1]' `tag'  " _n
-				}
-
-				forvalues i = 1/`=_N' {
-					if "`=comment[`i']'"!="" file write replacement `"`=comment[`i']'"' _n
-					file write replacement `"`=replacement[`i']'"' _n
-					file write replacement " " _n	
+								
+					forvalues i = 1/`=_N' {
+						if "`=comment[`i']'"!="" file write replacement `"`=comment[`i']'"' _n
+						file write replacement `"`=replacement[`i']'"' _n
+						file write replacement " " _n	
+					}
 				}
 			}
 			restore

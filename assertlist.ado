@@ -1,4 +1,4 @@
-*! assertlist version 2.15 - Mary Kay Trimner & Dale Rhoda - 2020-04-29
+*! assertlist version 2.17 - Mary Kay Trimner & Dale Rhoda - 2020-09-07
 *******************************************************************************
 * Change log
 * 				Updated
@@ -45,6 +45,12 @@
 *											Added nolabel option for exporting during all for consistency	
 * 2020-08-04	2.16	MK Trimner			Added check to make sure sheet name does not end in fix
 *											cleaned up syntax to see if is an assertlist "fix" tab	
+* 2020-09-10	2.17	MK Trimner			Added idlist to nonfix excel option
+*											and made other adjustments to accomodate this change
+*											cleaned up error message that references keep to include list option
+*											cleaned up comments on summry tab/screen
+*											Removed comment to sheet_name in Assertlist_summary if all lines passed
+*											Removed sections to export ids for all tabs as made a separate program
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -53,7 +59,7 @@ program assertlist
 	version 11.1
 	syntax anything(name=assertion equalok everything) [, KEEP(varlist) ///
 	       LIST(varlist) IDlist(varlist) CHECKlist(varlist) TAG(string) ///
-		   EXCEL(string asis) SHEET(string asis) FIX IDS ]
+		   EXCEL(string asis) SHEET(string asis) FIX ]
 	
 	
 	preserve
@@ -74,7 +80,7 @@ program assertlist
 		 noi check_options, keep(`keep') list(`list') ///
 			   idlist(`idlist') checklist(`checklist') ///
 			   excel(`excel') sheet(`sheet') `fix' hold(`hold') `ids'
-			   
+		
 		* If everything passes the check
 		* use `hold' file and generate assertion
 		use "`hold'", clear
@@ -107,7 +113,7 @@ program assertlist
 		if "`excel'"!="" {
 		    local passthroughoptions
 		    if "`idlist'" != "" local passthroughoptions idlist(`idlist')
-			if "`keep'" != "_al_obs_number" local passthroughoptions `passthroughoptions' keep(`keep')
+			if "`keep'" != "" local passthroughoptions `passthroughoptions' keep(`keep')
 			if "`checklist'" != "" local passthroughoptions `passthroughoptions' checklist(`checklist')
 			
 			noi write_xl_summary, assertion(`assertion') excel(`excel') ///
@@ -120,7 +126,7 @@ program assertlist
 		if `=r(min)'== 0 {
 		
 			* Trim down dataset to the vars needed
-			noi trimdown, keep(`varkeep') hold(`hold')
+			noi trimdown, keep(`varkeep') hold(`hold') idlist(`idlist')
 			
 			* If FIX is specified, create the fix page
 			local fixpassthrough 
@@ -133,23 +139,21 @@ program assertlist
 			* If excel is not specific, display results
 			* If EXCEL option is not specified, display results on screen
 			if "`excel'"==""  {
-				if "`keep'" != "_al_obs_number" {
-					noi list `keep', table noobs
-				}
-				else {
+			    
+				local message 
+				local header
+				if "`idlist'" == "_al_obs_number" local message "Dataset row numbers that contradict the assertion:" 
+				if "`keep'" == "" & "`idlist'" == "_al_obs_number" local header noheader
 					noi di ""
-					noi di "Dataset row numbers that contradict the assertion:"
+					noi di "`message'"
 					noi di as text "`msg'"
-					noi list `keep', table noheader noobs
-				}
+					noi list `idlist' `keep', table noobs `header'
 			}
-			
+
 			* If EXCEL is specified, but not FIX
 			if "`excel'"!="" & "`fix'"=="" noi write_nofix_sheet, excel(`excel') ///
 			sheet(`sheet') sheetexists(`sheetexists') row(`row') orgvarlist(`orgvarlist')
 			
-			* Expor the list of ids if specified
-			if "`excel'"!="" & "`ids'"!="" noi write_ids_sheet, excel(`excel')
 		}
 			
 		* Bring back original dataset to Stata
@@ -191,6 +195,28 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			noi di as text "`msg'"
 		}
 		
+		* If IDLIST is not set, create var name _al_obs_number
+		if "`idlist'" == ""  {
+			capture confirm variable _al_obs_number
+			if _rc==0 {
+				noi di as error "Assertlist error: This dataset already " ///
+								"contains a variable named _al_obs_number."
+				noi di as error "The assertlist program would like to " ///
+								"generate a variable with that name because " ///
+								"you called assertlist without the IDLIST option."
+				noi di as error "Either use the IDLIST option or rename " ///
+								"variable _al_obs_number and rerun assertlist."
+				noi di as text "`msg'"
+				local exitflag 1
+			}
+			else {
+				gen _al_obs_number = _n
+				label variable _al_obs_number "Dataset row number"
+				local idlist _al_obs_number
+				save "`hold'", replace
+			}
+		}
+		
 		* If FIX is populated, check required variables
 		if "`fix'"!="" & ("`idlist'"=="" | "`checklist'"=="" | "`excel'"=="" ) {
 			noi di as error "Assertlist error: You must specify the " ///
@@ -220,45 +246,22 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		* Trim SHEET to 31 characters if need
 		local sheet  "`=substr("`sheet'",1,`=min(31,`=strlen("`sheet'")')')'"
 		
-		* Check that if FIX option is not set, CHECKLIST and IDLIST are empty
-		if "`fix'"=="" & ("`checklist'"!="" | "`idlist'"!="") {
+		* Check that if FIX option is not set, CHECKLIST is empty
+		if "`fix'"=="" & "`checklist'"!=""  {
 				noi di ""
 				noi di as input "Assertlist warning: Assertlist will ignore " ///
-				"CHECKLIST and IDLIST values as they are not used "  ///
-				"with the KEEP option; only used with the FIX option."
+				"CHECKLIST values as they are only used with the FIX option."
 				noi di as text "`msg'"
 				local checklist 
-				local idlist
 		}
 		
 		* If FIX and KEEP are populated we want to set idlistpluskeep syntax to be used in messages
 		* And create a variable with both lists
-		local idandkeeplist `idlist' `keep'
+		local idandkeeplist `idlist' 
+		if "`fix'" != "" local idandkeeplist `idandkeeplist' `keep'
 		local idlistpluskeep IDLIST
-		if "`fix'"!="" & "`keep'"!="" local idlistpluskeep IDLIST and LIST
-		
-		* If FIX and KEEP are not set, create var name _al_obs_number
-		if "`keep'" == "" & "`fix'"=="" {
-			capture confirm variable _al_obs_number
-			if _rc==0 {
-				noi di as error "Assertlist error: This dataset already " ///
-								"contains a variable named _al_obs_number."
-				noi di as error "The assertlist program would like to " ///
-								"generate a variable with that name because " ///
-								"you called assertlist without the KEEP option."
-				noi di as error "Either use the KEEP option or rename " ///
-								"variable _al_obs_number and rerun assertlist."
-				noi di as text "`msg'"
-				local exitflag 1
-			}
-			else {
-				gen _al_obs_number = _n
-				label variable _al_obs_number "Dataset row number"
-				local keep _al_obs_number
-				save "`hold'", replace
-			}
-		}
-		
+		if "`keep'"!="" & "`fix'" != "" local idlistpluskeep IDLIST and LIST
+	
 		* Create local to check for variables that will be created
 		if "`fix'"!="" {
 			* For all variables provided in syntax...
@@ -393,37 +396,50 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 				* and _al_num_var_checked, these will be excluded from list below
 				* When actual check occurs.
 				if "`fix'"!="" {
-					* Double check that IDlist provided is the same as previously used
+					* Double check that IDlist and LIST provided is the same as previously used
 					local e
+					local estart 3
 					foreach v of varlist * {
 						if strpos("`e'","_al_var_1")==0  {
 							local e `e' `v' 
 						}
 					}
-					
-					* Determine the number of words in previous IDlist and LIST
-					* Need to subtract 1 as _al_assertion_syntax is included in list
-					local enum = `= wordcount("`e'") - 1'
-					
-					* Create local with the old IDLIST and LIST
-					* Start at the 3rd word in `e' as the first two are 
-					* check_sequence and num_var_checked
-					local elist
-					forvalues i = 3/`enum' {
-					    * Exclude _al_assertion_syntax and _al_tag
-						if !inlist("`=word("`e'",`i')'","_al_assertion_syntax","_al_tag") local elist `elist' `=word("`e'",`i')'
-					}
-										
-					if "`idandkeeplist'"!="`elist'" {
-						noi di as error "Assertlist error: `idlistpluskeep'(`idandkeeplist') does not match `idlistpluskeep'(`elist') "
-						noi di as error "previously used on SHEET `sheet'"
-						noi di as error "Either change `idlistpluskeep' to match or change SHEET and rerun."
-						noi di as text "`msg'"
-						local exitflag 1
-					}		
 				}
-			}	
-		}
+				* Now do it for the non-fix sheets
+				* Double check that IDlist and provided is the same as previously used
+				else {
+				    local estart 2
+					local e
+					foreach v of varlist * {
+						if strpos("`e'","_al_assertion_syntax")==0 {
+							local e `e' `v'
+						}	
+					}
+				}
+					
+				* Determine the number of words in previous IDlist and LIST
+				* Need to subtract 1 as _al_assertion_syntax is included in list
+				local enum = `= wordcount("`e'") - 1'
+				
+				* Create local with the old IDLIST and LIST
+				* Start at the 3rd word in `e' as the first two are 
+				* check_sequence and num_var_checked
+				local elist
+				forvalues i = `estart'/`enum' {
+					* Exclude _al_assertion_syntax and _al_tag
+					if !inlist("`=word("`e'",`i')'","_al_assertion_syntax","_al_tag") local elist `elist' `=word("`e'",`i')'
+				}
+									
+				if "`idandkeeplist'"!="`elist'" {
+					noi di as error "Assertlist error: `idlistpluskeep'(`idandkeeplist') does not match `idlistpluskeep'(`elist') "
+					noi di as error "previously used on SHEET `sheet'"
+					noi di as error "Either change `idlistpluskeep' to match or change SHEET and rerun."
+					noi di as text "`msg'"
+					local exitflag 1
+				}		
+			}
+		}	
+		
 		
 		* If any of the above errors exist, exit program
 		if `exitflag'==1 {
@@ -487,27 +503,27 @@ program define write_xl_summary
 			post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 				(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
 				("All observations passed the assertion.") ///
-				("Tab `sheet' will not contain any output for this assertion") ///
+				("") /// //("Tab `sheet' will not contain any output for this assertion") ///
 				("`idlist'") ("`keep'") ("`checklist'")	
 		}
 		else {
 			if `num_fail' == 1 {
 				noi di as text ///
-				"`num_fail' observation failed assertion; see tab `sheet' for more details."
+				"`num_fail' observation failed the assertion; see tab `sheet' for more details."
 				
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
-				("`num_fail' observation failed assertion. See appropriate tab for details.") ///
+				("`num_fail' observation failed the assertion. See appropriate tab for details.") ///
 				("`sheet'") ("`idlist'") ("`keep'") ("`checklist'")	
 			}
 			
 			if `num_fail'  > 1 {
 				noi di as text ///
-				"`num_fail' observations failed assertion; see tab `sheet' for more details."
+				"`num_fail' observations failed the assertion; see tab `sheet' for more details."
 				
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
-				("`num_fail' observations failed assertion. See appropriate tab for details") ("`sheet'") ///
+				("`num_fail' observations failed the assertion. See appropriate tab for details") ("`sheet'") ///
 				("`idlist'") ("`keep'") ("`checklist'")	
 			}
 		}		
@@ -540,7 +556,7 @@ end
 capture program drop trimdown
 program define trimdown
 
-	syntax ,  KEEP(varlist) HOLD(string asis)
+	syntax ,  KEEP(varlist) HOLD(string asis) IDlist(varlist)
 	
 	qui {
 		* Drop if passed assertion...
@@ -550,7 +566,7 @@ program define trimdown
 		keep `keep' _al_assertion_syntax _al_tag _al_check_sequence 
 				
 		* Put variables in order
-		order _al_check_sequence _al_assertion_syntax _al_tag `keep'
+		order _al_check_sequence `idlist' _al_assertion_syntax _al_tag `keep'
 		
 		* Save tempfile with new changes
 		save "`hold'", replace	
@@ -732,104 +748,6 @@ end
 
 ********************************************************************************
 ********************************************************************************
-******		Write IDs that failed asserction to single Tab				   *****
-********************************************************************************
-********************************************************************************
-
-capture program drop write_ids_sheet
-program define write_ids_sheet
-
-	syntax, EXCEL(string asis)
-	
-	* Now lets create a single dataset with the cards that need reviewed
-	capture import excel using "`excel'.xlsx", describe
-	local f `=r(N_worksheet)'
-
-	forvalues b = 2/`f' {
-				
-		* Bring in the sheet
-		capture import excel using "`excel'.xlsx", describe
-				
-		* Capture the sheet name			
-		local sheet `=r(worksheet_`b')'
-			
-		* Import file
-		noi di as text "Importing excel sheet: `sheet'..."
-		import excel "`excel'.xlsx", sheet("`sheet'") firstrow clear allstring
-		
-		keep RI01 RI03 RI11 RI12 _al_tag _al_check_sequence
-		duplicates drop
-		if `b' > 2 {
-			append using assertion_ids_for_review
-			duplicates drop
-		}
-		save assertion_ids_for_review, replace
-	}
-
-	* replace tag value
-	replace _al_tag = _al_check_sequence + " : " + _al_tag
-	rename _al_tag assertion_details
-
-	destring _al_check_sequence RI01 RI03, replace
-	sort RI01 RI03 RI11 RI12 _al_check_sequence, stable
-	bysort RI01 RI03 RI11 RI12: gen n = _n
-
-	drop _al_check_sequence
-	reshape wide assertion_details, i(RI01 RI03 RI11 RI12) j(n)
-
-	* create count of the number of assertions failed
-	gen number_assertions_failed = 0
-	label var number_assertions_failed "Total Number of assertions that child failed"
-	foreach v of varlist assertion_details* {
-		replace number_assertions_failed = number_assertions_failed + 1 if !missing(`v')
-	}
-
-	order number_assertions_failed, after(RI12)
-	compress
-	save assertion_ids_for_review, replace
-
-	export excel using "`excel'.xlsx", firstrow (var) sheet("List of IDs failed assertions", replace) nolabel
-
-	*******************************************************************************
-	* Format the excel spreadsheet
-	describe
-	local col `=r(k)'
-	local row `=r(N)+1'
-
-	local i 1
-	foreach v of varlist * {
-		tostring `v', replace
-		tempvar `v'_l
-		gen ``v'_l'=length(`v')
-		summarize ``v'_l'
-		local m`i'=min(`=`r(max)'+5',20)
-		drop ``v'_l'
-		local ++i
-	}
-
-
-	* Now format the excel
-	mata: b = xl()
-	mata: b.load_book("`excel'.xlsx")
-	mata: b.set_mode("open")
-	mata: b.set_sheet("List of IDs failed assertions")
-
-
-	forvalues i = 1/`col' {
-		mata: b.set_column_width(`i',`i', `m`i'')
-		mata: b.set_text_wrap((2,`row'),`i',"on")
-	}
-
-	mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
-	mata: b.set_font_bold(1,(1,`col'),"on")
-	mata: b.set_horizontal_align(1,(1,`col'),"left")
-
-	mata b.close_book()	
-
-end
-
-********************************************************************************
-********************************************************************************
 ******							Format Excel Sheet						   *****
 ********************************************************************************
 ********************************************************************************
@@ -901,6 +819,13 @@ program define format_sheet_v14
 			foreach v in `hi' {
 				mata: b.set_fill_pattern((2,`r_v'),`v',"solid","yellow")
 				mata: b.set_column_width(`=`v'-2',`=`v'-2',0)
+			}
+		}
+		
+		* If the sheet is Assertlist_Summary, we want to make 4 columns center aligned
+		if "`sheet'" == "Assertlist_Summary" {
+			foreach v in 1 4 5 6 {
+				mata: b.set_horizontal_align((2,`r_v'),`v',"center")
 			}
 		}
 		
@@ -993,6 +918,14 @@ program define format_sheet_v15
 				mata: b.fmtid_set_column_width(format_hide_`=`v'-2',`=`v'-2',`=`v'-2',0)
 			}
 		}
+		
+		* If the sheet is Assertlist_Summary, we want to make 4 columns center aligned
+		if "`sheet'" == "Assertlist_Summary" {
+			foreach v in 1 4 5 6 {
+				mata: b.set_horizontal_align((2,`r_v'),`v',"center")
+			}
+		}
+
 		mata b.close_book()	
 	}
 end		

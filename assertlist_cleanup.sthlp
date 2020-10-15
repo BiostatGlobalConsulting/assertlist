@@ -27,7 +27,7 @@
 	assert command and provide details around WHICH rows failed the assertion, and HOW. {p_end}
 
 {pstd} {cmd: assertlist_cleanup} takes the {cmd:assertlist} excel output and makes the column names 
-	user friendly. It also sorts all {it:"fix"} tabs based on the {help assertlist##idlist:IDLIST} provided during 
+	user friendly. It can also sort the result tabs based on the {help assertlist##idlist:IDLIST} provided during 
 	the assertion if the {cmd:IDSORT} option is specified. {p_end}  
 {pstd} {cmd:assertlist_cleanup} can only be used if the {help assertlist##excel:EXCEL} option was specified while running {cmd:assertlist}. 
 	If the output file does not exist, the program will exit immediately. 
@@ -55,7 +55,7 @@
         {bf: path and file name. Do {it:NOT} include double quotes around the path and filename for output Excel file.}{p_end}
 
 {marker idsort}
-{pstd} {bf:IDSORT} - Sorts each {it:"fix"} tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
+{pstd} {bf:IDSORT} - Sorts each tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
 
 {title: Column Name Change Details}
 {pstd} The list below enumerates the column name changes that are completed by {cmd:ASSERTLIST_CLEANUP}. All other column names remain the same. {p_end}
@@ -113,12 +113,13 @@
 {pmore2} 1. {bf:_al_idlist}:	--->	{it: List of Variables Used to Identify Line in Assertion} {p_end}
 {pmore2} 2. {bf:_al_number_assertions_failed}:	--->	{it:Number of Assertions Line Failed} {p_end}
 {pmore2} 3. {bf:for each number of failed assertions in _al_number_assertions_failed:}{p_end}
-{pmore2} {bf:NOTE:# will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
 {pmore3} a. {bf:_al_assertion_details#}:	--->	{it:Assertion Tag or Syntax for # Failed Assertion} {p_end}
+
+{pmore2} {bf:NOTE: `#' will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
+{pmore2} {bf:NOTE: This tab is only present if {help assertlist_export_ids} ran prior to {bf:assertlist_cleanup}}.{p_end}
 
 {pmore} Reference {help assertlist_export_ids} for column value details. {p_end}
 
-{pmore2} {bf:NOTE: This tab is only present if {help assertlist_export_ids} ran prior to {bf:assertlist_cleanup}}.{p_end}
 {hline}
 
 {title:Authors}

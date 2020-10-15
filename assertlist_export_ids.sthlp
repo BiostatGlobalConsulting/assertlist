@@ -26,7 +26,7 @@
 	assert command and provide details around WHICH rows failed the assertion, and HOW. {p_end}
 
 {pstd} {cmd: assertlist_export_ids} provides a high level overview of results by creating a new excel tab within the assertion output spreadsheet.  
-	This tab has a single row for each ID that fail 1 or more assertions with columns showing which assertions they failed. {p_end}
+	This tab has a single row for each unique ID(s) provided in {bf:{help assertlist##idlist:IDLIST}} that fail 1 or more assertions with columns showing which assertions they failed. {p_end}
 
 {pstd} {cmd:assertlist_export_ids} can only be used if the {help assertlist##excel:EXCEL} option was specified while running {cmd:assertlist}. 
 	If the output file does not exist, the program will exit immediately.  {p_end}
@@ -50,18 +50,20 @@
 	The column names depend on if this program is ran before or after {help assertlist_celanup} {p_end}
 
 {dlgtab:Column names BEFORE assertlist_cleanup}
-{pmore2} 1. {bf:_al_idlist}:	--->	{it:List of variables used to identify line in {help assertlist}. Etiher from {help assertlist##idlist:IDLIST} or {help assertlist##list:LIST} options} {p_end}
+{pmore2} 1. {bf:_al_idlist}:	--->	{it:List of variables used to identify line in {help assertlist} from the {help assertlist##idlist:IDLIST} option} {p_end}
 {pmore2} 2. {bf:_al_number_assertions_failed}:	--->	{it:Total number of assertions line failed} {p_end}
 {pmore2} 3. {bf:for each number of failed assertions in _al_number_assertions_failed:}{p_end}
-{pmore2} {bf:NOTE:# will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
 {pmore3} a. {bf:_al_assertion_details#}:	--->	{it:Description of failed assertion} {p_end}
+
+{pmore2} {bf:NOTE: `#' will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
 
 {dlgtab:Column names AFTER assertlist_cleanup}
 {pmore2} 1. {bf:List of Variables Used to Identify Line in Assertion} {p_end}
 {pmore2} 2. {bf:Number of Assertions Line Failed} {p_end}
 {pmore2} 3. {bf:for each number of failed assertions in _al_number_assertions_failed:}{p_end}
-{pmore2} {bf:NOTE:# will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
 {pmore3} a. {bf:Assertion Tag or Syntax for # Failed Assertion} {p_end}
+
+{pmore2} {bf:NOTE: `#' will be 1 up to `_al_number_assertions_failed' for that line}{p_end}
 
 {hline}
 

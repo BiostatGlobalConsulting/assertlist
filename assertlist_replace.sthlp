@@ -40,6 +40,10 @@
 {pstd} {cmd:assertlist_replace} can only be used if the {help assertlist##excel:EXCEL} and {help assertlist##fix:FIX} options were specified while running {cmd:assertlist}. 
 	If the output file does not exist, the program will exit immediately. 
 	{p_end}
+
+{pstd} It is important to note that {cmd:assertlist_replace} ignores all empty columns. To change a value to {it:missing} 
+	populate the appropriate cell in the excel file with {bf:"!MISSING!"}. This should be used for both string and numeric variables. 
+	{cmd:assertlist_replace} will maintain the original variable value type. {p_end}
 	   
 {hline}
 
