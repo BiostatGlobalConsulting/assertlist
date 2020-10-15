@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.13 - Biostat Global Consulting - 2020-08-13
+*! assertlist_cleanup version 1.14 - Biostat Global Consulting - 2020-09-09
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -38,6 +38,8 @@
 *										Added new names for Assertlist Summary tab to show idlist checklist and list values
 * 2020-08-13	1.13	MK Trimner		Added code to cleanup ID tab if populated
 *										Changed syntax check for "fix" tabs
+* 2020-09-07	1.14	MK Trimner		Added idsort to non-fix tabs as well
+* 2020-09-09			MK Trimner		Removed Completed from sequence number	
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -56,7 +58,7 @@ program define assertlist_cleanup
 		if lower(substr("``v''",-5,.)) == ".xlsx" ///
 			local `v' `=substr("``v''",1,length("``v''")-5)'
 	}
-
+	
 	* Make sure file provided exists
 	capture confirm file "`excel'.xlsx"
 	if _rc!=0 {
@@ -113,7 +115,7 @@ program define assertlist_cleanup
 					
 				* Set local for max number of vars checked
 				local max 0
-				
+				local start 2
 				* If it is a fix sheet, sort the variables by id
 				if lower(substr("`sheet'",-4,.)) == "_fix" {
 				
@@ -125,11 +127,13 @@ program define assertlist_cleanup
 							destring _al_num_var_checked, gen(`num_var_checked_l')
 							qui summarize `num_var_checked_l'
 							local max `=r(max)'
+							local start 3
 							drop `num_var_checked_l'
 						}
 					}
-					if "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet')  max(`max')
 				}
+				
+				if "`sheet'" != "Assertlist_Summary" & "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet') max(`max') start(`start')
 		
 				* Remove _al from var names
 				local n 1
@@ -163,7 +167,7 @@ end
 capture program drop assertlist_cleanup_idsort
 program define assertlist_cleanup_idsort
 
-	syntax, EXCEL(string asis) SHEET(string asis) MAX(int)
+	syntax, EXCEL(string asis) SHEET(string asis) MAX(int) START(int)
 
 	noi di as text "Sort sheet by ID Variables..."
 
@@ -173,9 +177,10 @@ program define assertlist_cleanup_idsort
 		foreach v of varlist * {
 			if strpos("`e'","_al_assertion_syntax")==0  {
 				local e `e' `v' 
+				capture destring `v', replace
 			}
 		}
-			
+				
 		* Determine the number of words in previous IDlist
 		* Need to subtract 1 as _al_assertion_syntax is included in list
 		local enum = `= wordcount("`e'") - 1'
@@ -184,7 +189,7 @@ program define assertlist_cleanup_idsort
 		* Start at the 3rd word in `e' as the first two are 
 		* check_sequence and num_var_checked
 		local elist
-		forvalues i = 3/`enum' {
+		forvalues i = `start'/`enum' {
 			local elist `elist' `=word("`e'",`i')'
 		}
 							
@@ -230,7 +235,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		* Grab the var name and placement for putexcel purpose
 		local `v'n `n'
 			
-		if "``v''"=="check_sequence" 	local `v' Assertion Completed Sequence Number 
+		if "``v''"=="check_sequence" 	local `v' Assertion Sequence Number 
 		if "``v''"=="obs_number" 		local `v' Observation Number in Dataset 
 		if "``v''"=="assertion_syntax"	local `v' Assertion Syntax That Failed
 		if "``v''"=="tag" 				local `v' User Specified Additional Information

@@ -80,7 +80,7 @@
 		options.
 		{p_end}
 
-{pmore} {bf:NOTE: If {help assertlist##list:LIST} and }
+{pmore} {bf:NOTE: If {help assertlist##list:LIST}, {help assertlist##list:IDLIST} and }
         {bf:{help assertlist##fix:FIX} are not }
         {bf:specified, assertlist simply displays the row numbers of all lines }
 		{bf:that contradict the assertion.} {p_end}
@@ -138,12 +138,12 @@
 {pmore} {bf:SHEET} is only an option when {help assertlist##excel:EXCEL} is specified.
 		It must be a valid Excel sheet name and it CANNOT be 
 		Assertlist_Summary. If {help assertlist##excel:EXCEL} option is specified and {bf:SHEET} is not provided, 
-		the sheet will be the {bf:{_al_sequence_number}} or {bf:{_al_sequence_number}_fix} when {help assertlist##fix:FIX} used.
+		the sheet will be the {bf:{_al_sequence_number}} or {bf:{_al_sequence_number}_fix} when the {help assertlist##fix:FIX} option is specified.
 		{p_end}
 
 {pmore} If the {bf:sheet} already exists, the new output is appended to the existing sheet.{p_end}
 
-{pmore} {bf:Note: Do not include the string {it:"_fix"} in any SHEET names as the program uses this to run certain steps.} {p_end}
+{pmore} {bf:Note: Do not include the string {it:"_fix"} at the end of any SHEET names as the program uses this to run certain steps.} {p_end}
 
 {pmore} {bf:Note: If the {help assertlist##fix:FIX} option is specified, the SHEET can only have 1 set of {help assertlist##idlist:IDlist} and {help assertlist##list:LIST} variables.}
 	{bf:If the user would like to complete an assertion with a different combination of {help assertlist##idlist:IDlist} and {help assertlist##list:LIST} variables}
@@ -152,9 +152,12 @@
 {pmore} If the {help assertlist##fix:FIX} option is not specified, 
         {bf:SHEET} will be populated with the following: {p_end}
 {pmore2} 1. {bf:_al_sequence_number}:	{it: Sequential counter for assertions whose output was directed to this {cmd:EXCEL} file.} {p_end}
-{pmore2} 2. {bf:_al_assertion_that_failed} {it: Contains {cmd:exp} syntax.} {p_end}
-{pmore2} 3. {bf:_al_tag}:		{it:String provided in {help assertlist##tag:TAG}, if any.} {p_end}
-{pmore2} 4. {bf:var list}: 		{it:Variables provided in {help assertlist##list:LIST} option for all assertions on specified {help assertlist##sheet:SHEET}}. {p_end}
+{pmore2} 2. {bf:IDlist variables}: 	{it:One column for each of the variables in {help assertlist##idlist:IDlist}}. {p_end}
+{pmore2} 3. {bf:_al_assertion_that_failed} {it: Contains {cmd:exp} syntax.} {p_end}
+{pmore2} 4. {bf:_al_tag}:		{it:String provided in {help assertlist##tag:TAG}, if any.} {p_end}
+{pmore2} 5. {bf:var list}: 		{it:Variables provided in {help assertlist##list:LIST} option for all assertions on specified {help assertlist##sheet:SHEET}}. {p_end}
+
+{pmore} {bf:Note: If {help assertlist##fix:IDLIST} is not provided, assertlist sets IDLIST to row number.} {p_end}
 
 {marker tag}
 {pstd} {bf:TAG} - user-specified string to list with the output (Often a short 
@@ -168,7 +171,7 @@
        help data managers correct (or 'fix') errant data values. {p_end}
 
 {pmore} {bf: Note: The program works best when FIX output goes to a different }
-		{bf: sheet than LIST output. So when the user specifies the FIX option, }
+		{bf: sheet than non-fix output. So when the user specifies the FIX option, }
 		{bf: assertlist will }
         {bf: send output to a worksheet with the name }
 		{bf: specified in the SHEET option PLUS the characters _fix.} 
@@ -195,11 +198,7 @@
         These variables will be included in the replace syntax for corrections. 
 		{p_end}
 
-{pmore} {bf:IDlist} is required if {help assertlist##excel:EXCEL} and 
-        {help assertlist##fix:FIX} options are specified.{p_end}
-{pmore} {bf:IDlist} should only be provided if {help assertlist##excel:EXCEL} 
-        and {help assertlist##fix:FIX} options are specified; it will otherwise be ignored. 
-		{p_end}
+{pmore} {bf:IDlist} can be populated for any assertions. If {bf:IDLIST} is not specified, {cmd:assertlist} will set this option to the line number in dataset.{p_end}
 
 {pmore} {bf:Note: It is best practice to use the same set of IDs across all assertions within the same excel file.}
 	{bf: Be sure that ID variable or variables uniquely identify each row. If you do not have a unique ID, you can create one prior to running this program. } 

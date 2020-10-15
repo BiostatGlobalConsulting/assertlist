@@ -1,6 +1,6 @@
 * Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
 * Dale Rhoda
-* August 08, 2020
+* September 14, 2020
 
 * Make sure you are cd in the location you want to run your test as does create output.
 ********************************************************************************
@@ -19,6 +19,23 @@ foreach f in replacement_commands al_xl_demo_replace_commands al_xl_demo_replace
 
 * Open Stata's auto dataset
 sysuse auto, clear
+gen id = _n
+label var id "Line number"
+
+* Create a string variable for testing purposes
+gen test1 = ""
+replace test1 = "Test_string" in 17
+replace test1 = "Test_string" in 27
+replace test1 = "Test_string" in 47
+label var test1 "Variable created to use replace program with string value"
+
+* Create another variable that we want to be missing so we can replace it
+* as missing in our testing later on
+gen test2 = .
+replace test2 = 1 in 17
+replace test2 = 22 in 43
+
+
 ********************************************************************************
 * First we will take a look at rep78. This will show there are 5 missing values.
 tab rep78, m
@@ -26,11 +43,14 @@ tab rep78, m
 * Run assertlist to show the line number for each contradiction to the screen
 assertlist !missing(rep78)
 
-* Instead of the line number we want to see make and rep78 for all contradictions
+* Run assertlist to show the make for each contradiction to the screen
+*assertlist !missing(rep78), idlist(make)
+
+* Run the assertiona nd show both the line number and make and rep78 for all contradictions
 assertlist !missing(rep78), list(make rep78)
 
 * You can include as many variables as you would like in the list option.
-assertlist !missing(rep78), list(make price mpg rep78 headroom trunk foreign)
+assertlist !missing(rep78), list(price mpg rep78 headroom trunk foreign) idlist(id)
 
 ********************************************************************************
 * If you would like to save the list of contradictions, use the excel option
@@ -38,10 +58,19 @@ assertlist !missing(rep78), list(make price mpg rep78 headroom trunk foreign)
 * With no list option, the line numbers of rows that fail assertion are exported
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
 
+* Now we want to add to this tab, but pass through additional variables
+* To do this with the non-fix option the idlist must be there same
+* Here we are defaulting to the original _al_ob_number
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) list(make rep78)
+
 * In this case we list the make and the value of rep78, and we include an informative tag
 * This will add the new variables to the far right of the tab
 * And the tag will be included in both the Assertlist_Summary and do_not_want_to_correct tabs.
-assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) list(make rep78) tag(Missing value for rep78)
+* This first run will ERROR because the idlist is the not the same
+*assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) idlist(make rep78) tag(Missing value for rep78)
+
+* but if we change the tab name, it will work
+*assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct2) list(make rep78) tag(Missing value for rep78) //id(id)
 
 * Add "_fix" to the end of the SHEET name.
 * this will ERROR out as this is not acceptable
@@ -132,6 +161,10 @@ assertlist trunk < 22, excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(ma
 * Add check for missing rep78 so we can add some conflicts
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(rep78) tag(rep78 missing) list(price rep78 gear_ratio)
 
+* Add check for test string that will be used to show how to make a string missing in replace program
+assertlist test1 == "", excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(test1 test2) tag(Test1 should be missing) list(price rep78 gear_ratio)
+assertlist test2 == . , excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(make) checklist(test2 test1) tag(Test2 should be missing) list(price rep78 gear_ratio)
+
 * Note that if you sort the output by 'make',
 * the VW Diesel appears twice in the list; it has extreme values 
 * for two of the variables we checked.  So if we went back to VW to 
@@ -152,8 +185,8 @@ copy "al_xl_demo.xlsx" "al_xl_demo_not_cleaned.xlsx", replace
 * Now we will run the program to grab all the ids from each tab and put them in 1 tab
 * Users can opt to create a new excel file or add it to the existing excel file.
 * This will run the spreadsheet that has not been cleaned first.
- assertlist_export_ids, excel(al_xl_demo)
-  
+assertlist_export_ids, excel(al_xl_demo)
+
  ********************************************************************************
 * Once you have completed all potential assertions and BEFORE
 * going back to the source to check the data, you can run the 
@@ -163,10 +196,10 @@ copy "al_xl_demo.xlsx" "al_xl_demo_not_cleaned.xlsx", replace
 * and optional NAME to preserve the original spreadsheet.
 * This sheet has an ID tab
 assertlist_cleanup, excel(al_xl_demo.xlsx) name(al_xl_demo_clean.xlsx)
-
 * Next we will also specify the optional IDSORT option so that all sheets are
 * sorted by the IDLIST provided in the original assertion. 
 * This automatically does the sort by `make' mentioned above.
+
 assertlist_cleanup, excel(al_xl_demo_org.xlsx) name(al_xl_demo_clean_and_sorted.xlsx) idsort
 
 * Lastly we will only specify the required EXCEL option.
@@ -195,7 +228,6 @@ assertlist_export_ids, excel(al_xl_demo_clean_and_sorted.xlsx)
 * own corrected values to each spreadsheet.
 
 * You can also go into these excel files and make your own changes in the columns for replace values
-
 foreach v in al_xl_demo_org al_xl_demo_clean al_xl_demo_not_cleaned {
 	
 	putexcel set "`v'.xlsx", modify sheet("want_to_correct_fix")	
@@ -232,11 +264,22 @@ foreach v in al_xl_demo_org al_xl_demo_clean al_xl_demo_not_cleaned {
 	putexcel L22 = 5, nformat(#) //conflict from other tab
 	putexcel L23 = 1, nformat(#) //conflict from other tab
 	putexcel L24 = 4, nformat(#) // same as other tab
+	putexcel L25 = "!MISSING!"
+	putexcel L26 = "!MISSING!"
+	putexcel L27 = "!MISSING!"
+	putexcel L28 = "!MISSING!" 
+	putexcel L29 = "!MISSING!"
+	putexcel P25 = "!MISSING!" // Creates duplicate within tab
+	putexcel P26 = "!MISSING!"
+	putexcel P27 = "!MISSING!"
+	putexcel P28 = "!MISSING!" // Creates duplicate within tab
+	putexcel P29 = "!MISSING!"
 	
 	* Add replacement values for var 2
 	putexcel P18 = 14, nformat(#)
 	putexcel close
 }
+
 
 ********************************************************************************
 * Now we will run the assertlist_replace program

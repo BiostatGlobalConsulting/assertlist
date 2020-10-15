@@ -1,4 +1,4 @@
-*! assertlist_export_all_ids version 1.00 - Biostat Global Consulting - 2020-08-13
+*! assertlist_export_all_ids version 1.02 - Biostat Global Consulting - 2020-09-07
 
 * This program can be used after assertlist or assertlist_cleanup to grab the list of IDs
 * that failed all assertions in a spreadsheet and export to single tab.
@@ -8,7 +8,9 @@
 * 				Updated
 *				version
 * Date 			number 	Name			What Changed
-* 2020-08-13	1.00		MK Trimner		Original program
+* 2020-08-13	1.00	MK Trimner		Original program
+* 2020-09-01	1.01	MK Trimner		Corrected placement of sheetcount & datacount locals
+* 2020-09-07	1.02	MK Trimner		Updated to accomodate idlist added to non-fix excel tabs
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -46,6 +48,9 @@ program define assertlist_export_ids
 			capture import excel using "`excel'.xlsx", describe
 			local f `=r(N_worksheet)'
 			
+			local sheetcount 0
+			local datacount 0
+
 			forvalues b = 1/`f' {
 								
 				* Bring in the sheet
@@ -54,7 +59,6 @@ program define assertlist_export_ids
 				* Capture the sheet name			
 				local sheet `=r(worksheet_`b')'
 				
-				local sheetcount 0
 				if "`sheet'" != "Assertlist_Summary" {
 					
 					local ++sheetcount
@@ -68,7 +72,7 @@ program define assertlist_export_ids
 					capture confirm var _al_check_sequence
 					if _rc != 0 {
 					    local clean 1
-						capture rename  AssertionCompletedSequenceNum 	_al_check_sequence
+						capture rename AssertionSequenceNumber		 	_al_check_sequence
 						capture rename UserSpecifiedAdditionalInform 	_al_tag
 						capture rename ObservationNumberinDataset		_al_obs_number
 						capture rename AssertionSyntaxThatFailed		_al_assertion_syntax
@@ -76,72 +80,48 @@ program define assertlist_export_ids
 						capture drop NumberofVariablesCheckedinA
 						
 					}
-					if lower(substr("`sheet'",-4,.)) == "_fix" {
-					    
-						capture drop _al_num_var_checked
+					capture drop _al_num_var_checked
 						
-						* Create local with keep variables 
-						local keepvars 
-						local vcount 0
+					* Create local with keep variables 
+					local keepvars 
+					local vcount 0
+					foreach v of varlist* {
+						if `vcount' == 0 local keepvars `keepvars' `v'
+						if "`v'" == "_al_tag" local ++vcount 
+					}
+					keep `keepvars'
+						
+					tempfile data
+					save `data', replace
+					
+					capture confirm file "`data'" 
+					if _rc == 0 {
+						use "`data'", clear
+									
+						* Create an idlist from the variables
+						local idlist
 						foreach v of varlist* {
-							if `vcount' == 0 local keepvars `keepvars' `v'
-							if "`v'" == "_al_tag" local ++vcount 
+							if !inlist("`v'","_al_tag", "_al_check_sequence", "_al_assertion_syntax") local idlist `idlist' `v'
 						}
-						keep `keepvars'
-						
-						tempfile fix_data
-						save `fix_data', replace
-					}
-							
-					else {
-						capture confirm var _al_obs_number
-						if _rc == 0 {
-							preserve
-							keep if !missing(_al_obs_number)
-							keep _al_*
-							tempfile with_obs_number
-							save `with_obs_number', replace
-							restore
-							
-							drop if !missing(_al_obs_number)
-							drop _al_obs_number
-						}	
-						
-						tempfile with_ids
-						save `with_ids', replace
-					}
-					
-					local datacount 0
-					foreach d in with_obs_number with_ids fix_data {
-						capture confirm file "``d''" 
-						if _rc == 0 {
-							use "``d''", clear
-										
-							* Create an idlist from the variables
-							local idlist
-							foreach v of varlist* {
-								if !inlist("`v'","_al_tag", "_al_check_sequence", "_al_assertion_syntax") local idlist `idlist' `v'
-							}
-					
-							gen _al_idlist = "`idlist'"					
+				
+						gen _al_idlist = "`idlist'"					
+						duplicates drop
+				
+						local ++datacount 
+						if `sheetcount' == 1  & `datacount' == 1 {
+							tempfile assertion_ids_for_review
+							save `assertion_ids_for_review', replace
+						}
+						else {
+							append using `assertion_ids_for_review'
 							duplicates drop
-					
-							local ++datacount 
-							if `sheetcount' == 1  & `datacount' == 1 {
-								tempfile assertion_ids_for_review
-								save `assertion_ids_for_review', replace
-							}
-							else {
-								append using `assertion_ids_for_review'
-								duplicates drop
-								save `assertion_ids_for_review', replace
-							}
+							save `assertion_ids_for_review', replace
 						}
-					
 					}
+					
 				}
 			}
-
+		
 			noi di as text "Create one dataset..."
 			* replace tag value
 			replace _al_tag = _al_check_sequence + " : " + _al_tag if !missing(_al_tag)
@@ -165,7 +145,7 @@ program define assertlist_export_ids
 			
 			sort `idlist' _al_check_sequence, stable
 			bysort `idlist': gen n = _n
-
+				
 			drop _al_check_sequence
 			reshape wide _al_assertion_details, i(`idlist') j(n)
 
@@ -178,6 +158,7 @@ program define assertlist_export_ids
 			
 			order _al_idlist
 			order _al_number_assertions_failed, before(_al_assertion_details1)
+			sort _al_idlist `idlist'
 			compress
 			save `assertion_ids_for_review', replace
 
