@@ -13,7 +13,7 @@
 {title:Syntax}
 {p 8 16 2}
 {opt assertlist_cleanup}{cmd:,}   {it:{help assertlist_cleanup##excel:EXCEL}}(string) [ {it:{help assertlist_cleanup##name:NAME}}(string)
-{it:{help assertlist_cleanup##idsort:IDSORT}} ]
+{it:{help assertlist_cleanup##idsort:IDSORT}} {it:{help assertlist_cleanup##noformat:noFORMAT}}]
 {p_end}
 
 {synoptline}
@@ -56,6 +56,12 @@
 
 {marker idsort}
 {pstd} {bf:IDSORT} - Sorts each tab by the list of variables that uniquely identify each observation. These variables were provided in the {help assertlist##idlist:IDLIST} option in the original {cmd:assertlist} command.	{p_end}
+
+{marker noformat}
+{pstd} {bf:noFORMAT} - {cmd:assertlist_cleanup} defaults to format columns with text, color and width options making the spreadsheet easy for the user to read. When {cmd:noformat} is specified all Excel formatting commands are ignored. 
+This enables the user to run Stata faster and avoid potential Excel formatting errors due to large spreadsheets. {p_end}
+
+{pmore2} {bf:NOTE: If a tab was already formatted during the {help assertlist} run this formatting will not be undone. This option only ensures that this run will not add any formatting to the spreadsheet.} {p_end}
 
 {title: Column Name Change Details}
 {pstd} The list below enumerates the column name changes that are completed by {cmd:ASSERTLIST_CLEANUP}. All other column names remain the same. {p_end}

@@ -1,6 +1,6 @@
 * Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
 * Dale Rhoda
-* September 14, 2020
+* March 31, 2021
 
 * Make sure you are cd in the location you want to run your test as does create output.
 ********************************************************************************
@@ -8,7 +8,9 @@
 * We want to first wipe out any that may already be existing in the current directory
 * For this demo we want to erase any old excel files 
 * Start with an empty Excel files
-foreach f in al_xl_demo al_xl_demo_not_cleaned al_xl_demo_clean al_xl_demo_clean_and_sorted al_xl_demo_org al_xl_demo_with_id_tab {
+foreach f in al_xl_demo al_xl_demo_no_format al_xl_demo_not_cleaned al_xl_demo_clean al_xl_demo_clean_and_sorted ///
+			al_xl_demo_org al_xl_demo_no_format_org al_xl_demo_no_format_not_cleaned al_xl_demo_clean_and_sorted_no_format ///
+			al_xl_demo_clean_no_format al_xl_demo_with_id_tab {
 	capture erase `f'.xlsx
 }
 
@@ -56,12 +58,18 @@ assertlist !missing(rep78), list(price mpg rep78 headroom trunk foreign) idlist(
 * If you would like to save the list of contradictions, use the excel option
 
 * With no list option, the line numbers of rows that fail assertion are exported
-assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
+assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) 
+
+* With no list option, the line numbers of rows that fail assertion are exported
+* But also add noformat option. This may speed up the Stata run and avoid excel formatting errors if spreadsheet is too large
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(do_not_want_to_correct) noformat
 
 * Now we want to add to this tab, but pass through additional variables
 * To do this with the non-fix option the idlist must be there same
 * Here we are defaulting to the original _al_ob_number
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) list(make rep78)
+* Show with nonformat option
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(do_not_want_to_correct) list(make rep78) noformat
 
 * In this case we list the make and the value of rep78, and we include an informative tag
 * This will add the new variables to the far right of the tab
@@ -78,6 +86,9 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
 
 * But if we add the FIX option.. the SHEET name can include FIX in it
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_fix) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+* Show with noFormat option
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(do_not_want_to_fix) fix idlist(make price) checklist(rep78) tag(Missing value for rep78) noformat
+
 
 * If we want to be able to go back and put in a corrected value specify the FIX
 * This creates extra spreadsheet columns for all variables provided in CHECKLIST
@@ -86,6 +97,9 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_fix) fix
 * If the user populates these columns with the correct value they can use the ASSERTLIST_REPLACE program
 * to read in these values and make the replacements.
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78)
+* Show with noFormat option
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78) noformat
+
 
 * Lets the first fix test above but add a second variable to IDLIST.
 * This will ERROR out because the IDLIST provided is a different IDLIST then used in the previous line but has the same sheet name.
@@ -97,19 +111,32 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix id
 
 * Rerun with a new tab
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct_with_list) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg)
+* Show with noFormat option
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(want_to_correct_with_list) fix idlist(make) checklist(rep78) tag(Missing value for rep78) list(price mpg) noformat
 
 * So we can rerun this by either changing the SHEETNAME or IDLIST
 * In this case we will change the SHEETNAME
 * The sheet will include "_fix" at the end
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct2) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
+* Show with noFormat option 
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(want_to_correct2) fix idlist(make price) checklist(rep78) tag(Missing value for rep78) noformat
+
 
 * If sheet is not provided, then the program will use the assertion number for the sheetname
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) list(make price rep78) tag(Missing value for rep78)
+* Show with noFormat option 
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) list(make price rep78) tag(Missing value for rep78) noformat
 
 * If sheet is not provided, then the program will use the assertion number for the sheetname
 * When fix is specified, suffix _fix will be added
 * We will also list gear ratio
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) idlist(make price) check(rep78) list(gear_ratio) tag(Missing value for rep78) fix
+* Show with noFormat option 
+assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) idlist(make price) check(rep78) list(gear_ratio) tag(Missing value for rep78) fix noformat
+* Now we will rerun this with formatting to show what happens if you add formatting to an unformatted sheet
+* the Summary tab will be formatted and so will tab 8_fix
+//assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(8) idlist(make price) check(rep78) list(gear_ratio) tag(Missing value for rep78) fix 
+
 
 ********************************************************************************
 * Assertions where all lines pass
@@ -176,17 +203,19 @@ assertlist test2 == . , excel(al_xl_demo.xlsx) sheet(several_tests) fix idlist(m
 
 * Make a copy of this spreadsheet to preserve the original output as we want to make changes below.
 copy "al_xl_demo.xlsx" "al_xl_demo_org.xlsx", replace
+copy "al_xl_demo_no_format.xlsx" "al_xl_demo_no_format_org.xlsx", replace
 
 * We also want to make a copy so we can add replacement values to a file that has not been cleaned
 copy "al_xl_demo.xlsx" "al_xl_demo_not_cleaned.xlsx", replace
-
+copy "al_xl_demo_no_format.xlsx" "al_xl_demo_no_format_not_cleaned.xlsx", replace
 ********************************************************************************
 ********************************************************************************
 * Now we will run the program to grab all the ids from each tab and put them in 1 tab
 * Users can opt to create a new excel file or add it to the existing excel file.
 * This will run the spreadsheet that has not been cleaned first.
 assertlist_export_ids, excel(al_xl_demo)
-
+* Show with noFORMAT option 
+assertlist_export_ids, excel(al_xl_demo_no_format) noformat
  ********************************************************************************
 * Once you have completed all potential assertions and BEFORE
 * going back to the source to check the data, you can run the 
@@ -196,22 +225,31 @@ assertlist_export_ids, excel(al_xl_demo)
 * and optional NAME to preserve the original spreadsheet.
 * This sheet has an ID tab
 assertlist_cleanup, excel(al_xl_demo.xlsx) name(al_xl_demo_clean.xlsx)
+* Show with noFORMAT option 
+assertlist_cleanup, excel(al_xl_demo_no_format.xlsx) name(al_xl_demo_clean_no_format.xlsx) noformat
+
 * Next we will also specify the optional IDSORT option so that all sheets are
 * sorted by the IDLIST provided in the original assertion. 
 * This automatically does the sort by `make' mentioned above.
 
 assertlist_cleanup, excel(al_xl_demo_org.xlsx) name(al_xl_demo_clean_and_sorted.xlsx) idsort
+* Show with noFORMAT option 
+assertlist_cleanup, excel(al_xl_demo_no_format_org.xlsx) name(al_xl_demo_clean_and_sorted_no_format.xlsx) idsort noformat
 
 * Lastly we will only specify the required EXCEL option.
 * This will overwrite the original EXCEL file with the cleaned up sheets.
 * so we can show how assertlist_replace can be used on either EXCEL files.
 * This also shows how the ID tab will be cleaned up 
 assertlist_cleanup, excel(al_xl_demo.xlsx)
+* Show with noFORMAT option
+assertlist_cleanup, excel(al_xl_demo_no_format.xlsx) noformat
 
  ********************************************************************************
 * Run the assertlist_export_ids on a cleaned dataset
 * This will also add the cleaned up headers to the new ID tab
 assertlist_export_ids, excel(al_xl_demo_clean_and_sorted.xlsx)
+* Show with noFORMAT option 
+assertlist_export_ids, excel(al_xl_demo_clean_and_sorted.xlsx) noformat
 
 ********************************************************************************
 * To show an example of assertlist_replace we will need to add some values to 

@@ -22,6 +22,7 @@
 		  {it:{help assertlist##fix:FIX}}
 		  {it:{help assertlist##idlist:IDlist}}(varlist) 
 		  {it:{help assertlist##checklist:CHECKlist}}(varlist)
+		  {it:{help assertlist##noformat:noFORMAT}}
  ] {p_end}
 
 {synoptline}
@@ -220,6 +221,13 @@
 		{bf:It is sometimes convenient to hold a long list of variable names in a }
 		{bf:local macro and list the macro in the IDlist or CHECKlist options.}
 		{p_end}
+
+{marker noformat}
+{pstd} {bf:noFORMAT} - {cmd:assertlist} defaults to format columns with text, color and width options making the spreadsheet easy for the user to read. When {cmd:noformat} is specified all Excel formatting commands are ignored. 
+This enables the user to run Stata faster and avoid potential Excel formatting errors due to large spreadsheets. {p_end}
+
+{pmore2} {bf:NOTE: If a SHEET is formatted during a prior {help assertlist} run this formatting will not be undone.}
+{bf:The same is true if a later run sends output to the same SHEET and does not specify {it:noformat}, assertlist will {it:ADD} formatting to that sheet.} {p_end}
 
 {hline}
 
