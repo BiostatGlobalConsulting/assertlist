@@ -1,4 +1,4 @@
-*! assertlist version 2.17 - Mary Kay Trimner & Dale Rhoda - 2020-09-07
+*! assertlist version 2.18 - Mary Kay Trimner & Dale Rhoda - 2021-03-31
 *******************************************************************************
 * Change log
 * 				Updated
@@ -51,6 +51,7 @@
 *											cleaned up comments on summry tab/screen
 *											Removed comment to sheet_name in Assertlist_summary if all lines passed
 *											Removed sections to export ids for all tabs as made a separate program
+* 2021-03-31	2.18	MK Trimner			Added formatting option to prevent excel errors and speed up run
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -59,7 +60,7 @@ program assertlist
 	version 11.1
 	syntax anything(name=assertion equalok everything) [, KEEP(varlist) ///
 	       LIST(varlist) IDlist(varlist) CHECKlist(varlist) TAG(string) ///
-		   EXCEL(string asis) SHEET(string asis) FIX ]
+		   EXCEL(string asis) SHEET(string asis) FIX noFORMAT]
 	
 	
 	preserve
@@ -68,9 +69,9 @@ program assertlist
 	* We will be importing throughout the next few steps if excel file
 	* Already exists
 	qui {
-			tempfile hold
-			save "`hold'", replace
-			
+		tempfile hold
+		save "`hold'", replace
+						
 		* Grab the version of stata to be used for formatting
 		if c(stata_version) < 15 global FORMATTING_VERSION 14
 		else global FORMATTING_VERSION 15
@@ -117,7 +118,7 @@ program assertlist
 			if "`checklist'" != "" local passthroughoptions `passthroughoptions' checklist(`checklist')
 			
 			noi write_xl_summary, assertion(`assertion') excel(`excel') ///
-			hold(`hold') summaryexists(`summaryexists') sheet(`sheet') `passthroughoptions'
+			hold(`hold') summaryexists(`summaryexists') sheet(`sheet') `passthroughoptions' `format'
 		}
 		
 		* If there were lines that failed the assertion, complete the below steps
@@ -134,7 +135,7 @@ program assertlist
 			if "`fix'"!=""	///
 				noi write_fix_sheet, excel(`excel') sheet(`sheet') ///
 				check(`checklist') id(`idlist') sheetexists(`sheetexists') ///
-				hold(`hold') row(`row') num(`num') orgvarlist(`orgvarlist') `fixpassthrough'
+				hold(`hold') row(`row') num(`num') orgvarlist(`orgvarlist') `fixpassthrough' `format'
 				
 			* If excel is not specific, display results
 			* If EXCEL option is not specified, display results on screen
@@ -152,7 +153,7 @@ program assertlist
 
 			* If EXCEL is specified, but not FIX
 			if "`excel'"!="" & "`fix'"=="" noi write_nofix_sheet, excel(`excel') ///
-			sheet(`sheet') sheetexists(`sheetexists') row(`row') orgvarlist(`orgvarlist')
+			sheet(`sheet') sheetexists(`sheetexists') row(`row') orgvarlist(`orgvarlist') `format'
 			
 		}
 			
@@ -468,7 +469,8 @@ capture program drop write_xl_summary
 program define write_xl_summary
 
 	syntax, ASSERTION(string asis) EXCEL(string asis) HOLD(string asis) ///	
-			SUMMARYexists(int) SHEET(string asis) [IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist)] 
+			SUMMARYexists(int) SHEET(string asis) ///
+			[IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist) noFORMAT] 
 
 	qui {
 		* Write Summary tab...
@@ -543,7 +545,7 @@ program define write_xl_summary
 						sheetreplace cell(A1) firstrow(variable)
 						
 		* Format Summary Page
-		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
+		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
 	}	
 end
 
@@ -583,7 +585,8 @@ capture program drop write_fix_sheet
 program define write_fix_sheet
 
 syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist) ///
-		SHEETexists(int) HOLD(string asis) ROW(int) NUM(int) [, KEEP(varlist) ORGVARLIST(string asis)]
+		SHEETexists(int) HOLD(string asis) ROW(int) NUM(int) ///
+		[, KEEP(varlist) ORGVARLIST(string asis) noFORMAT]
 		
 		
 	qui {
@@ -673,7 +676,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		local hi `=`=wordcount("`idlist' `keep'")' + 8'
 		
 		* Format Fix Sheet
-		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
+		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
 	}	
 end		 
 
@@ -686,7 +689,8 @@ end
 capture program drop write_nofix_sheet
 program define write_nofix_sheet
 	
-	syntax, EXCEL(string asis) SHEET(string asis) SHEETexists(int) ROW(int) [ ORGVARLIST(string asis)]
+	syntax, EXCEL(string asis) SHEET(string asis) SHEETexists(int) ROW(int) ///
+			[ ORGVARLIST(string asis) noFORMAT]
 	
 	qui {
 		* Create no fix tab...
@@ -742,7 +746,7 @@ program define write_nofix_sheet
 		}
 		
 		* Format tab
-		format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
+		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
 	}
 end
 

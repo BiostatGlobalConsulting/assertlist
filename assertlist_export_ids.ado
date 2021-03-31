@@ -1,4 +1,4 @@
-*! assertlist_export_all_ids version 1.02 - Biostat Global Consulting - 2020-09-07
+*! assertlist_export_all_ids version 1.03 - Biostat Global Consulting - 2021-03-31
 
 * This program can be used after assertlist or assertlist_cleanup to grab the list of IDs
 * that failed all assertions in a spreadsheet and export to single tab.
@@ -11,6 +11,8 @@
 * 2020-08-13	1.00	MK Trimner		Original program
 * 2020-09-01	1.01	MK Trimner		Corrected placement of sheetcount & datacount locals
 * 2020-09-07	1.02	MK Trimner		Updated to accomodate idlist added to non-fix excel tabs
+* 2021-0-31		1.03	MK Trimner		Added format option to allow for a faster Stata run 
+*										and to avoid excel formatting errors for large spreadsheets
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -18,7 +20,7 @@
 capture program drop assertlist_export_ids
 program define assertlist_export_ids
 
-	syntax  , EXCEL(string asis)
+	syntax  , EXCEL(string asis) [noFORMAT]
 
 	qui {
 		noi di as text "Confirming excel file exists..."
@@ -167,48 +169,50 @@ program define assertlist_export_ids
 			*******************************************************************************
 			* If the Spreadsheet thas run through assertlist_cleanup 
 			* tidy up the variable names
-			if `clean' == 1 assertlist_export_ids_clean_up, excel(`excel') sheet(List of IDs failed assertions) 
+			if `clean' == 1 assertlist_export_ids_clean_up, excel(`excel') sheet(List of IDs failed assertions) `format'
 			*******************************************************************************
 			
-			* Format the excel spreadsheet
-			noi di as text "Format excel sheet..."
-			describe
-			local col `=r(k)'
-			local row `=r(N)+1'
+			if "`format'" == "" {
+				* Format the excel spreadsheet
+				noi di as text "Format excel sheet..."
+				describe
+				local col `=r(k)'
+				local row `=r(N)+1'
 
-			local i 1
-			foreach v of varlist * {
-				local varname = length("`v'")
-				tostring `v', replace
-				tempvar `v'_l
-				gen ``v'_l'=length(`v')
-				summarize ``v'_l'
-				local varstring =`=`r(max)'+5'
-				local uselength `varstring'
-				if `varname' > `varstring' local uselength `=`varname'+2'
-				local maxlength 20
-				if `varname' > 20 local maxlength `varname'
-				local m`i'=min(`uselength',`maxlength')
-				drop ``v'_l'
-				local ++i
-			}
-			
-			* Now format the excel
-			mata: b = xl()
-			mata: b.load_book("`excel'.xlsx")
-			mata: b.set_mode("open")
-			mata: b.set_sheet("List of IDs failed assertions")
-			
-			forvalues i = 1/`col' {
-				mata: b.set_column_width(`i',`i', `m`i'')
-				mata: b.set_text_wrap((2,`row'),`i',"on")
-			}
+				local i 1
+				foreach v of varlist * {
+					local varname = length("`v'")
+					tostring `v', replace
+					tempvar `v'_l
+					gen ``v'_l'=length(`v')
+					summarize ``v'_l'
+					local varstring =`=`r(max)'+5'
+					local uselength `varstring'
+					if `varname' > `varstring' local uselength `=`varname'+2'
+					local maxlength 20
+					if `varname' > 20 local maxlength `varname'
+					local m`i'=min(`uselength',`maxlength')
+					drop ``v'_l'
+					local ++i
+				}
+				
+				* Now format the excel
+				mata: b = xl()
+				mata: b.load_book("`excel'.xlsx")
+				mata: b.set_mode("open")
+				mata: b.set_sheet("List of IDs failed assertions")
+				
+				forvalues i = 1/`col' {
+					mata: b.set_column_width(`i',`i', `m`i'')
+					mata: b.set_text_wrap((2,`row'),`i',"on")
+				}
 
-			mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
-			mata: b.set_font_bold(1,(1,`col'),"on")
-			mata: b.set_horizontal_align(1,(1,`col'),"left")
-			
-			mata b.close_book()	
+				mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
+				mata: b.set_font_bold(1,(1,`col'),"on")
+				mata: b.set_horizontal_align(1,(1,`col'),"left")
+				
+				mata b.close_book()	
+			}
 		}
 	}
 end
@@ -223,7 +227,7 @@ program define assertlist_export_ids_clean_up
 
 	qui {
 	    
-		syntax,  EXCEL(string asis) SHEET(string asis)
+		syntax,  EXCEL(string asis) SHEET(string asis) [noFORMAT]
 	    
 		capture destring _al_number_assertions_failed, replace
 										
@@ -252,8 +256,8 @@ program define assertlist_export_ids_clean_up
 		foreach v of varlist* {
 								
 			mata: st_local("xlcolname", invtokens(numtobase26(`n')))
-			putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
-					
+			if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			else 	putexcel `xlcolname'1 = "``v''"
 			local ++n
 		}
 	}
