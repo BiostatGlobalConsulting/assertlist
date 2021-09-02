@@ -1,4 +1,4 @@
-*! assertlist version 2.18 - Mary Kay Trimner & Dale Rhoda - 2021-03-31
+*! assertlist version 2.19 - Mary Kay Trimner & Dale Rhoda - 2021-09-02
 *******************************************************************************
 * Change log
 * 				Updated
@@ -52,6 +52,7 @@
 *											Removed comment to sheet_name in Assertlist_summary if all lines passed
 *											Removed sections to export ids for all tabs as made a separate program
 * 2021-03-31	2.18	MK Trimner			Added formatting option to prevent excel errors and speed up run
+* 2021-09-02	2.19	MK Trimner			Removed SHEET message if all pass assertion
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -116,6 +117,7 @@ program assertlist
 		    if "`idlist'" != "" local passthroughoptions idlist(`idlist')
 			if "`keep'" != "" local passthroughoptions `passthroughoptions' keep(`keep')
 			if "`checklist'" != "" local passthroughoptions `passthroughoptions' checklist(`checklist')
+			if "`sheetmessage'" != "" local passthroughoptions `passthroughoptions' sheetmsg(`sheetmessage')
 			
 			noi write_xl_summary, assertion(`assertion') excel(`excel') ///
 			hold(`hold') summaryexists(`summaryexists') sheet(`sheet') `passthroughoptions' `format'
@@ -191,11 +193,9 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		local keep `llist'
 				
 		* If EXCEL is populated, make sure sheet is populated
-		if "`excel'" != "" & "`sheet'" == "" {
-			noi di as text "Assertlist warning: Since option SHEET was not provided the SHEET will be populated with ASSERTION CHECK SEQUENCE number." 
-			noi di as text "`msg'"
-		}
-		
+		c_local sheetmessage
+		if "`excel'" != "" & "`sheet'" == "" c_local sheetmessage "Assertlist warning: Since option SHEET was not provided the SHEET will be populated with ASSERTION CHECK SEQUENCE number:" 
+		noi di "`sheetmessage'"
 		* If IDLIST is not set, create var name _al_obs_number
 		if "`idlist'" == ""  {
 			capture confirm variable _al_obs_number
@@ -470,7 +470,7 @@ program define write_xl_summary
 
 	syntax, ASSERTION(string asis) EXCEL(string asis) HOLD(string asis) ///	
 			SUMMARYexists(int) SHEET(string asis) ///
-			[IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist) noFORMAT] 
+			[IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist) SHEETMSG(string asis) noFORMAT] 
 
 	qui {
 		* Write Summary tab...
@@ -509,6 +509,8 @@ program define write_xl_summary
 				("`idlist'") ("`keep'") ("`checklist'")	
 		}
 		else {
+			noi di "`sheetmsg'${SEQUENCE}"
+						
 			if `num_fail' == 1 {
 				noi di as text ///
 				"`num_fail' observation failed the assertion; see tab `sheet' for more details."
