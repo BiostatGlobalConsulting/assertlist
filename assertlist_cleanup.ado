@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.14 - Biostat Global Consulting - 2020-09-09
+*! assertlist_cleanup version 1.15 - Biostat Global Consulting - 2021-03-31
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -40,6 +40,7 @@
 *										Changed syntax check for "fix" tabs
 * 2020-09-07	1.14	MK Trimner		Added idsort to non-fix tabs as well
 * 2020-09-09			MK Trimner		Removed Completed from sequence number	
+* 2021-03-31	1.15	MK Trimner		Added noFormat option to allow Stata to run faster and avoid Excel formatting errors due to large size	
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -47,7 +48,7 @@
 
 program define assertlist_cleanup
 
-	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT ]
+	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT noFORMAT]
 
 	noi di as text "Confirming excel file exists..."
 	
@@ -99,7 +100,7 @@ program define assertlist_cleanup
 			* Capture the sheet name			
 			local sheet `=r(worksheet_`b')'
 			
-			if "`sheet'" == "List of IDs failed assertions" assertlist_cleanup_id_tab, excel(`excel') sheet(`sheet')
+			if "`sheet'" == "List of IDs failed assertions" assertlist_cleanup_id_tab, excel(`excel') sheet(`sheet') `format'
 			else {
 		
 				* Import file
@@ -133,7 +134,7 @@ program define assertlist_cleanup
 					}
 				}
 				
-				if "`sheet'" != "Assertlist_Summary" & "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet') max(`max') start(`start')
+				if "`sheet'" != "Assertlist_Summary" & "`idsort'"!="" assertlist_cleanup_idsort, excel(`excel') sheet(`sheet') max(`max') start(`start') `format'
 		
 				* Remove _al from var names
 				local n 1
@@ -143,13 +144,13 @@ program define assertlist_cleanup
 					
 					* Rename all the variables
 					assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
-						max(`max') var(`v') passthrough(`passthrough') hide(`hide')
+						max(`max') var(`v') passthrough(`passthrough') hide(`hide') `format'
 								
 					local ++n
 				}
 				
 			* Format header row for each tab
-			assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
+			if "`format'" == "" assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
 				passthrough(`passthrough') hide(`hide')
 			
 			}
@@ -167,7 +168,7 @@ end
 capture program drop assertlist_cleanup_idsort
 program define assertlist_cleanup_idsort
 
-	syntax, EXCEL(string asis) SHEET(string asis) MAX(int) START(int)
+	syntax, EXCEL(string asis) SHEET(string asis) MAX(int) START(int) [noFORMAT]
 
 	noi di as text "Sort sheet by ID Variables..."
 
@@ -212,7 +213,7 @@ capture program drop assertlist_cleanup_rename
 program define assertlist_cleanup_rename
 
 syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
-			PASSTHROUGH(string asis) HIDE(string asis)
+			PASSTHROUGH(string asis) HIDE(string asis) [noFORMAT]
 	qui {
 
 		local v `var'
@@ -275,7 +276,8 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
-		putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+		if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+		else putexcel `xlcolname'1 = "``v''"
 
 		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
 		
@@ -357,7 +359,7 @@ end
 capture program drop assertlist_cleanup_id_tab
 program define assertlist_cleanup_id_tab
 
-syntax  , EXCEL(string asis) SHEET(string asis) 
+syntax  , EXCEL(string asis) SHEET(string asis) [noFORMAT]
 
 	qui {
 	    
@@ -373,7 +375,7 @@ syntax  , EXCEL(string asis) SHEET(string asis)
 		foreach v of varlist* {
 		    
 			local `v' `v'
-			if "`v'" == "_al_idlist" 				local _al_idlist 							List of Variables Used to Identify Line in Assertion
+			if "`v'" == "_al_idlist" 					local _al_idlist 							List of Variables Used to Identify Line in Assertion
 			if "`v'" == "_al_number_assertions_failed" 	local _al_number_assertions_failed 		Number of Assertions Line Failed
 		}
 		
@@ -393,8 +395,8 @@ syntax  , EXCEL(string asis) SHEET(string asis)
 		foreach v of varlist* {
 		    			
 		   	mata: st_local("xlcolname", invtokens(numtobase26(`n')))
-			putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
-			
+			if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			else putexcel `xlcolname'1 = "``v''"
 			local ++n
 		}
 	}
