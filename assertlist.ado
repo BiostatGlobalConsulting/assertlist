@@ -1,4 +1,4 @@
-*! assertlist version 2.19 - Mary Kay Trimner & Dale Rhoda - 2021-09-02
+*! assertlist version 2.20 - Mary Kay Trimner & Dale Rhoda - 2022-03-29
 *******************************************************************************
 * Change log
 * 				Updated
@@ -53,6 +53,9 @@
 *											Removed sections to export ids for all tabs as made a separate program
 * 2021-03-31	2.18	MK Trimner			Added formatting option to prevent excel errors and speed up run
 * 2021-09-02	2.19	MK Trimner			Removed SHEET message if all pass assertion
+* 2022-03-16	2.20	MK Trimner			Switched the order of output to align with how user specified them
+* 2022-03-29								Made it so that variable _al_obs_number is always part of IDLIST
+*											to help identify failed assertions across dataset. This will not be put out in the summary tab IDLIST unless no other variables were specified in IDLIST 
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -150,7 +153,8 @@ program assertlist
 					noi di ""
 					noi di "`message'"
 					noi di as text "`msg'"
-					noi list `idlist' `keep', table noobs `header'
+					noi list `varkeep', table noobs `header'
+					*noi list `idlist' `keep', table noobs `header'
 			}
 
 			* If EXCEL is specified, but not FIX
@@ -187,9 +191,11 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		foreach v in `keep' `list' {
 			local llist `llist' `v'
 			local ullist  : list uniq llist
-			local llist   : list sort ullist
+			*local llist   : list sort ullist
+			local llist `ullist'
 		}
 		
+		di "`llist'"
 		local keep `llist'
 				
 		* If EXCEL is populated, make sure sheet is populated
@@ -197,7 +203,7 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		if "`excel'" != "" & "`sheet'" == "" c_local sheetmessage "Assertlist warning: Since option SHEET was not provided the SHEET will be populated with ASSERTION CHECK SEQUENCE number:" 
 		noi di "`sheetmessage'"
 		* If IDLIST is not set, create var name _al_obs_number
-		if "`idlist'" == ""  {
+		*if "`idlist'" == ""  {
 			capture confirm variable _al_obs_number
 			if _rc==0 {
 				noi di as error "Assertlist error: This dataset already " ///
@@ -213,10 +219,10 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			else {
 				gen _al_obs_number = _n
 				label variable _al_obs_number "Dataset row number"
-				local idlist _al_obs_number
+				local idlist _al_obs_number `idlist'
 				save "`hold'", replace
 			}
-		}
+		*}
 		
 		* If FIX is populated, check required variables
 		if "`fix'"!="" & ("`idlist'"=="" | "`checklist'"=="" | "`excel'"=="" ) {
@@ -281,13 +287,16 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		local varcheck tag check_sequence assertion_syntax `varlist_fix'
 		
 		* Create local of unique keep idlist and checklist variables
-		foreach v in `keep' `idlist' `checklist' {
-			local llist `llist' `v'
-			local ullist  : list uniq llist
-			local llist   : list sort ullist
+		foreach v in `idlist' `keep' `checklist' {
+			local llist2 `llist2' `v'
+			local ullist  : list uniq llist2
+			*local llist   : list sort ullist
+			local llist2 `ullist'
 		}
 		
-		local varkeep `llist'
+		local varkeep `llist2'
+		noi di "`varkeep'"
+		
 
 		* Identify if vars generated in this program exist in kept variables 
 		foreach v in `varkeep' {
@@ -498,15 +507,19 @@ program define write_xl_summary
 		count if _al_asrt == 0
 		local num_fail = r(N)
 		
+		if "`idlist'" == "_al_obs_number" local idlist2 `idlist'
+		else local idlist2 =subinstr("`idlist'","_al_obs_number","",.)
+
 		* Determine if all observations passed the assertion
 		if `num_fail' == 0 {
 			noi di as text "All observations passed the assertion."
+			
 				
 			post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 				(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
 				("All observations passed the assertion.") ///
 				("") /// //("Tab `sheet' will not contain any output for this assertion") ///
-				("`idlist'") ("`keep'") ("`checklist'")	
+				("`idlist2'") ("`keep'") ("`checklist'")	
 		}
 		else {
 			noi di "`sheetmsg'${SEQUENCE}"
@@ -518,7 +531,7 @@ program define write_xl_summary
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
 				("`num_fail' observation failed the assertion. See appropriate tab for details.") ///
-				("`sheet'") ("`idlist'") ("`keep'") ("`checklist'")	
+				("`sheet'") ("`idlist2'") ("`keep'") ("`checklist'")	
 			}
 			
 			if `num_fail'  > 1 {
@@ -528,7 +541,7 @@ program define write_xl_summary
 				post `handle' ($SEQUENCE) (`"`assertion'"') ("`=_al_tag'") ///
 					(`=`passed' + `num_fail'') (`passed') (`num_fail') ///
 				("`num_fail' observations failed the assertion. See appropriate tab for details") ("`sheet'") ///
-				("`idlist'") ("`keep'") ("`checklist'")	
+				("`idlist2'") ("`keep'") ("`checklist'")	
 			}
 		}		
 		
