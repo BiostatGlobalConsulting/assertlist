@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.15 - Biostat Global Consulting - 2021-03-31
+*! assertlist_cleanup version 1.15 - Biostat Global Consulting - 2022-03-14
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -40,7 +40,8 @@
 *										Changed syntax check for "fix" tabs
 * 2020-09-07	1.14	MK Trimner		Added idsort to non-fix tabs as well
 * 2020-09-09			MK Trimner		Removed Completed from sequence number	
-* 2021-03-31	1.15	MK Trimner		Added noFormat option to allow Stata to run faster and avoid Excel formatting errors due to large size	
+* 2021-03-31	1.15	MK Trimner		Added noFormat option to allow Stata to run faster and avoid Excel formatting errors due to large size
+* 2022-03-14	1.16	MK Trimner		Added txtwrap option to the rows in the failed assertion tabs 	
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -110,6 +111,7 @@ program define assertlist_cleanup
 				* Grab column count
 				qui describe
 				local columns = r(k)
+				local rows = `=`r(N)'+1'
 				
 				* Create a local with the cell range for sheet
 				local range `=r(range_`b')'
@@ -144,14 +146,14 @@ program define assertlist_cleanup
 					
 					* Rename all the variables
 					assertlist_cleanup_rename, excel(`excel') sheet(`sheet') n(`n') ///
-						max(`max') var(`v') passthrough(`passthrough') hide(`hide') `format'
+						max(`max') var(`v') passthrough(`passthrough') hide(`hide') rows(`rows') `format'
 								
 					local ++n
 				}
 				
 			* Format header row for each tab
 			if "`format'" == "" assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
-				passthrough(`passthrough') hide(`hide')
+				passthrough(`passthrough') hide(`hide') 
 			
 			}
 		}
@@ -213,7 +215,7 @@ capture program drop assertlist_cleanup_rename
 program define assertlist_cleanup_rename
 
 syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
-			PASSTHROUGH(string asis) HIDE(string asis) [noFORMAT]
+			PASSTHROUGH(string asis) HIDE(string asis) ROWS(int) [noFORMAT]
 	qui {
 
 		local v `var'
@@ -276,7 +278,10 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
-		if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+		if "`format'" == "" {
+			putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			putexcel `xlcolname'2:`xlcolname'`rows' , txtwrap
+		}
 		else putexcel `xlcolname'1 = "``v''"
 
 		if "`hide_var'"=="yes" local hide `hide' ``v'n' 
@@ -300,7 +305,7 @@ end
 capture program drop assertlist_cleanup_format_header
 program define assertlist_cleanup_format_header
 
-	syntax , EXCEL(string asis) SHEET(string asis) PASSTHROUGH(string asis) HIDE(string asis)
+	syntax , EXCEL(string asis) SHEET(string asis) PASSTHROUGH(string asis) HIDE(string asis) 
 	
 	* Format the width of each column
 	* use mata to populate table formatting

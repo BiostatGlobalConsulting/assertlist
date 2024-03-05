@@ -13,6 +13,8 @@
 * 2020-09-07	1.02	MK Trimner		Updated to accomodate idlist added to non-fix excel tabs
 * 2021-0-31		1.03	MK Trimner		Added format option to allow for a faster Stata run 
 *										and to avoid excel formatting errors for large spreadsheets
+* 2022-03-29	1.04	MK Trimner		Added _al_obs_number to all assertions so changed this code to sort by _al_obs_number instead of idlist
+*										idlist is used as a secondary sorting method
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -103,10 +105,11 @@ program define assertlist_export_ids
 						* Create an idlist from the variables
 						local idlist
 						foreach v of varlist* {
-							if !inlist("`v'","_al_tag", "_al_check_sequence", "_al_assertion_syntax") local idlist `idlist' `v'
+							if !inlist("`v'","_al_tag", "_al_check_sequence", "_al_assertion_syntax","_al_obs_number") local idlist `idlist' `v'
 						}
 				
-						gen _al_idlist = "`idlist'"					
+						gen _al_idlist = "`idlist'"	
+						replace _al_idlist = "_al_obs_number" if missing(_al_idlist)
 						duplicates drop
 				
 						local ++datacount 
@@ -134,22 +137,53 @@ program define assertlist_export_ids
 			rename _al_tag _al_assertion_details
 			
 			destring _al_check_sequence, replace
+			capture destring _al_obs_number, replace
 			
 			* Now we want to sort based on IDs
-			levelsof _al_idlist, local(idlist)
-			local newlist
-			foreach l in `idlist' {
-				local newlist `newlist' `l'
+			local orderlist
+			levelsof _al_obs_number, local(id)
+			foreach i in `id' {
+				levelsof _al_idlist if _al_obs_number == `i', local(list)
+				local uniquelist
+				foreach w in `list' {
+					local wc = wordcount("`w'")
+					forvalues n = 1/`wc' {
+						local uniquelist `uniquelist' `=word("`w'",`n')'
+					}
+				}
+				local list2 : list uniq uniquelist
+				replace _al_idlist = `"`list2'"' if _al_obs_number == `i'
+				local orderlist `orderlist' `uniquelist'
+				
+				foreach v in `list2' {
+					if "`v'" != "_al_obs_number" {
+						levelsof `v' if _al_obs_number == `i', local(list)
+						local uniquelist
+						foreach w in `list' {
+							local wc = wordcount("`w'")
+							forvalues n = 1/`wc' {
+								local uniquelist `uniquelist' `=word("`w'",`n')'
+							}
+							local list2 : list uniq uniquelist
+							replace `v' = `"`list2'"' if _al_obs_number == `i'
+
+						}
+					}
+				}
+				
 			}
 			
-			local idlist : list uniq newlist
-			
-			
-			sort `idlist' _al_check_sequence, stable
-			bysort `idlist': gen n = _n
+			local order2 : list uniq orderlist
+			local order2 =subinstr("`order2'","_al_obs_number","",.)
+			di "`order2'"
+					
+			sort _al_obs_number _al_check_sequence `order2', stable
+			bysort _al_obs_number: gen n = _n
 				
 			drop _al_check_sequence
-			reshape wide _al_assertion_details, i(`idlist') j(n)
+			reshape wide _al_assertion_details, i(_al_obs_number) j(n)
+			
+			order _al_obs_number _al_idlist `order2'
 
 			* create count of the number of assertions failed
 			gen _al_number_assertions_failed = 0
@@ -158,9 +192,9 @@ program define assertlist_export_ids
 				replace _al_number_assertions_failed = _al_number_assertions_failed + 1 if !missing(`v')
 			}
 			
-			order _al_idlist
+			order _al_idlist 
 			order _al_number_assertions_failed, before(_al_assertion_details1)
-			sort _al_idlist `idlist'
+			sort _al_obs_number _al_idlist `idlist'
 			compress
 			save `assertion_ids_for_review', replace
 
