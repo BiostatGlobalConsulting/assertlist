@@ -1,8 +1,8 @@
 * Examples of using assertlist, assertlist_cleanup and assertlist_replace on Stata's famous auto dataset
-* Dale Rhoda
+* Dale Rhoda & Mary Kay Trimner
 * March 31, 2021
 
-* Make sure you are cd in the location you want to run your test as does create output.
+* Make sure you cd to the location you want to run your test as this program does create output.
 ********************************************************************************
 * Multiple excel and .do files are created during this demo.
 * We want to first wipe out any that may already be existing in the current directory
@@ -65,7 +65,7 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct)
 assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(do_not_want_to_correct) noformat
 
 * Now we want to add to this tab, but pass through additional variables
-* To do this with the non-fix option the idlist must be there same
+* To do this with the non-fix option the idlist must be the same
 * Here we are defaulting to the original _al_ob_number
 assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_correct) list(make rep78)
 * Show with nonformat option
@@ -90,9 +90,9 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(do_not_want_to_fix) fix
 assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(do_not_want_to_fix) fix idlist(make price) checklist(rep78) tag(Missing value for rep78) noformat
 
 
-* If we want to be able to go back and put in a corrected value specify the FIX
-* This creates extra spreadsheet columns for all variables provided in CHECKLIST
-* The sheet will include "_fix" at the end
+* If we want to be able to go back and put in a corrected value, specify the FIX option.
+* This creates extra spreadsheet columns for all variables provided in CHECKLIST.
+* The sheet name will include "_fix" at the end.
 
 * If the user populates these columns with the correct value they can use the ASSERTLIST_REPLACE program
 * to read in these values and make the replacements.
@@ -101,7 +101,7 @@ assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix id
 assertlist !missing(rep78), excel(al_xl_demo_no_format.xlsx) sheet(want_to_correct) fix idlist(make) checklist(rep78) tag(Missing value for rep78) noformat
 
 
-* Lets the first fix test above but add a second variable to IDLIST.
+* Lets run the first fix test above but add a second variable to IDLIST.
 * This will ERROR out because the IDLIST provided is a different IDLIST then used in the previous line but has the same sheet name.
 * assertlist !missing(rep78), excel(al_xl_demo.xlsx) sheet(want_to_correct) fix idlist(make price) checklist(rep78) tag(Missing value for rep78)
 
