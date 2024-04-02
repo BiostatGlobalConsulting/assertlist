@@ -1,4 +1,4 @@
-*! assertlist version 2.20 - Mary Kay Trimner & Dale Rhoda - 2022-03-29
+*! assertlist version 2.22 - Mary Kay Trimner & Dale Rhoda - 2023-01-31
 *******************************************************************************
 * Change log
 * 				Updated
@@ -56,6 +56,11 @@
 * 2022-03-16	2.20	MK Trimner			Switched the order of output to align with how user specified them
 * 2022-03-29								Made it so that variable _al_obs_number is always part of IDLIST
 *											to help identify failed assertions across dataset. This will not be put out in the summary tab IDLIST unless no other variables were specified in IDLIST 
+* 2022-04-12	2.21	MK Trimner			Removed di of list from previous change debug process
+* 2023-01-31	2.22	MK Trimner			changed from noFormat to just Format. This is more logical
+*											Changed formatting to use formatids when
+*											using stata version >=15 			
+* 2024-03-20	2.23	MK Trimner			Updated the row value if sheet exists to remove blank rows	
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -64,7 +69,7 @@ program assertlist
 	version 11.1
 	syntax anything(name=assertion equalok everything) [, KEEP(varlist) ///
 	       LIST(varlist) IDlist(varlist) CHECKlist(varlist) TAG(string) ///
-		   EXCEL(string asis) SHEET(string asis) FIX noFORMAT]
+		   EXCEL(string asis) SHEET(string asis) FIX FORMAT]
 	
 	
 	preserve
@@ -195,7 +200,6 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 			local llist `ullist'
 		}
 		
-		di "`llist'"
 		local keep `llist'
 				
 		* If EXCEL is populated, make sure sheet is populated
@@ -295,7 +299,6 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 		}
 		
 		local varkeep `llist2'
-		noi di "`varkeep'"
 		
 
 		* Identify if vars generated in this program exist in kept variables 
@@ -394,8 +397,8 @@ syntax [, KEEP(varlist) LIST(varlist) IDlist(varlist) CHECKlist(varlist) ///
 				describe, varlist
 				
 				* grab the row number to know where we need to export to
-				* Add 2 to account for column names and where we want this placed
-				local row `=r(N) + 2'
+				* Add 1 to go to the next row
+				local row `=r(N) + 1'
 				
 				* Grab the original varlist from sheet
 				* This will help you confirm if the new vars match the old
@@ -479,7 +482,7 @@ program define write_xl_summary
 
 	syntax, ASSERTION(string asis) EXCEL(string asis) HOLD(string asis) ///	
 			SUMMARYexists(int) SHEET(string asis) ///
-			[IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist) SHEETMSG(string asis) noFORMAT] 
+			[IDLIST(varlist) KEEP(varlist) CHECKLIST(varlist) SHEETMSG(string asis) FORMAT] 
 
 	qui {
 		* Write Summary tab...
@@ -560,7 +563,7 @@ program define write_xl_summary
 						sheetreplace cell(A1) firstrow(variable)
 						
 		* Format Summary Page
-		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
+		if "`format'" != "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(Assertlist_Summary)
 	}	
 end
 
@@ -601,7 +604,7 @@ program define write_fix_sheet
 
 syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist) ///
 		SHEETexists(int) HOLD(string asis) ROW(int) NUM(int) ///
-		[, KEEP(varlist) ORGVARLIST(string asis) noFORMAT]
+		[, KEEP(varlist) ORGVARLIST(string asis) FORMAT]
 		
 		
 	qui {
@@ -691,7 +694,7 @@ syntax, EXCEL(string asis) SHEET(string asis) IDlist(varlist) CHECKlist(varlist)
 		local hi `=`=wordcount("`idlist' `keep'")' + 8'
 		
 		* Format Fix Sheet
-		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
+		if "`format'" != "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') highlight(`hi')
 	}	
 end		 
 
@@ -705,7 +708,7 @@ capture program drop write_nofix_sheet
 program define write_nofix_sheet
 	
 	syntax, EXCEL(string asis) SHEET(string asis) SHEETexists(int) ROW(int) ///
-			[ ORGVARLIST(string asis) noFORMAT]
+			[ ORGVARLIST(string asis) FORMAT]
 	
 	qui {
 		* Create no fix tab...
@@ -761,7 +764,7 @@ program define write_nofix_sheet
 		}
 		
 		* Format tab
-		if "`format'" == "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
+		if "`format'" != "" format_sheet_v${FORMATTING_VERSION}, excel(`excel') sheet(`sheet') 
 	}
 end
 
@@ -864,6 +867,7 @@ program define format_sheet_v15
 	syntax , EXCEL(string asis) SHEET(string asis) [ HIGHLIGHT(integer 0) ] 
 	
 	qui {
+		
 		* Pull in Excel sheet to format
 		* Grab the Excel data: Row count
 		* use mata to populate table formatting
@@ -892,30 +896,38 @@ program define format_sheet_v15
 		}
 		
 		* Create fontid for bold that will be added when appropriate
-		mata: bold = b.add_fontid()
-		mata: b.fontid_set_font_bold(bold, "on")
+		* Create a bold font
+		mata: bold_font = b.add_fontid()
+		mata: b.fontid_set_font(bold_font, "Calibri", 11, "black")
+		mata: b.fontid_set_font_bold(bold_font, "on" )
+		mata: b.fontid_set_font_italic(bold_font, "off" )  
 		
-		* Add textwrap to all rows
-		mata format_txtwrap = b.add_fmtid()
-		mata: b.set_fmtid((2,`r_v'),(2,`m_v'),format_txtwrap)
-		mata: b.fmtid_set_text_wrap(format_txtwrap, "on")
-				
+		mata assertlist_header = b.add_fmtid()
+		mata: b.fmtid_set_fontid(assertlist_header, bold_font)
+		mata: b.fmtid_set_fill_pattern(assertlist_header, "solid","lightgray")
+		mata: b.fmtid_set_horizontal_align(assertlist_header, "left")
+		
 		forvalues i = 1/`m_v' {
 			* Create the header format ids
-			mata format_header_`i' = b.add_fmtid()
-			mata: b.set_fmtid(1,`i',format_header_`i')
+			*mata format_header_`i' = b.add_fmtid()
+			mata: b.set_fmtid(1,`i',assertlist_header)
 			
 			* Since this is row 1, make them shaded, bold and horizontal aligned
-			mata: b.fmtid_set_fontid(format_header_`i', bold)
-			mata: b.fmtid_set_fill_pattern(format_header_`i', "solid","lightgray")
-			mata: b.fmtid_set_horizontal_align(format_header_`i', "left")
+			*mata: b.fmtid_set_fontid(format_header_`i', bold)
+			*mata: b.fmtid_set_fill_pattern(format_header_`i', "solid","lightgray")
+			*mata: b.fmtid_set_horizontal_align(format_header_`i', "left")
 						
 			* Set column width
-			mata format_width_`i' = b.add_fmtid()
-			mata: b.set_fmtid(2,`i',format_width_`i')
-			mata: b.fmtid_set_text_wrap(format_width_`i', "on")
-			mata: b.fmtid_set_column_width(format_width_`i',`i',`i', `m`i'')
+			mata format_width_`m`i'' = b.add_fmtid()
+			mata: b.fmtid_set_text_wrap(format_width_`m`i'', "on")
+			mata: b.fmtid_set_column_width(format_width_`m`i'',`i',`i', `m`i'')
+			mata: b.set_fmtid(2,`i',format_width_`m`i'')
+
 		}
+		
+		mata assertlist_all_others = b.add_fmtid()
+		mata: b.fmtid_set_text_wrap(assertlist_all_others, "on")
+		mata: b.set_fmtid((3,`=`r_v'+1'),(1,`m_v'),assertlist_all_others)		
 					
 		* Highlight the correct values yellow
 		if "`highlight'"!="0" {
@@ -925,16 +937,19 @@ program define format_sheet_v15
 			forvalues i = `highlight'(4)`m_v' {
 				local hi `hi' `i'
 			}
+			
+			* Create fmtid for highlighting
+			mata format_highlight = b.add_fmtid()
+			mata: b.fmtid_set_fill_pattern(format_highlight, "solid","yellow")
+
 
 			foreach v in `hi' {
-				* Create fmtid for highlighting
-				mata format_highlight_`v' = b.add_fmtid()
-				mata: b.set_fmtid((2,`r_v'),`v', format_highlight_`v')
-				mata: b.fmtid_set_fill_pattern(format_highlight_`v', "solid","yellow")
+				mata: b.set_fmtid((2,`r_v'),`v', format_highlight)
 			
-				mata format_hide_`=`v'-2' = b.add_fmtid()
-				mata: b.set_fmtid((1,`r_v'),`=`v'-2',format_hide_`=`v'-2')
-				mata: b.fmtid_set_column_width(format_hide_`=`v'-2',`=`v'-2',`=`v'-2',0)
+				mata format_hide_`v' = b.add_fmtid()
+				mata: b.fmtid_set_column_width(format_hide_`v',`=`v'-2',`=`v'-2',0)
+			
+				mata: b.set_fmtid((1,`r_v'),`=`v'-2',format_hide_`v')
 			}
 		}
 		

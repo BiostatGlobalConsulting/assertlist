@@ -1,4 +1,4 @@
-*! assertlist_export_all_ids version 1.03 - Biostat Global Consulting - 2021-03-31
+*! assertlist_export_all_ids version 1.05 - Biostat Global Consulting - 2023-01-29
 
 * This program can be used after assertlist or assertlist_cleanup to grab the list of IDs
 * that failed all assertions in a spreadsheet and export to single tab.
@@ -15,6 +15,9 @@
 *										and to avoid excel formatting errors for large spreadsheets
 * 2022-03-29	1.04	MK Trimner		Added _al_obs_number to all assertions so changed this code to sort by _al_obs_number instead of idlist
 *										idlist is used as a secondary sorting method
+* 2023-01-29	1.05	MK TRimner		Changed noFORMAT to FORMAT. it is more logical. The default now is to not format. 
+*										Added fmtids if using stata version >=15
+* 2024-03-20	1.06	MK trimner		Added code to only keep the _al_* variables
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -22,9 +25,15 @@
 capture program drop assertlist_export_ids
 program define assertlist_export_ids
 
-	syntax  , EXCEL(string asis) [noFORMAT]
+	syntax  , EXCEL(string asis) [FORMAT]
 
 	qui {
+		
+		* Grab the version of stata to be used for formatting
+		if c(stata_version) < 15 global FORMATTING_VERSION 14
+		else global FORMATTING_VERSION 15
+			
+
 		noi di as text "Confirming excel file exists..."
 		
 		* If the user specified a .xls or .xlsx extension in NAME or EXCEL, strip it off here
@@ -94,6 +103,10 @@ program define assertlist_export_ids
 						if "`v'" == "_al_tag" local ++vcount 
 					}
 					keep `keepvars'
+					
+					* Drop any that do not start with _al*
+					* The fix tab may have vars before the tag varaible
+					keep _al_*
 						
 					tempfile data
 					save `data', replace
@@ -206,7 +219,7 @@ program define assertlist_export_ids
 			if `clean' == 1 assertlist_export_ids_clean_up, excel(`excel') sheet(List of IDs failed assertions) `format'
 			*******************************************************************************
 			
-			if "`format'" == "" {
+			if "`format'" != "" {
 				* Format the excel spreadsheet
 				noi di as text "Format excel sheet..."
 				describe
@@ -236,15 +249,46 @@ program define assertlist_export_ids
 				mata: b.set_mode("open")
 				mata: b.set_sheet("List of IDs failed assertions")
 				
-				forvalues i = 1/`col' {
-					mata: b.set_column_width(`i',`i', `m`i'')
-					mata: b.set_text_wrap((2,`row'),`i',"on")
-				}
-
-				mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
-				mata: b.set_font_bold(1,(1,`col'),"on")
-				mata: b.set_horizontal_align(1,(1,`col'),"left")
 				
+				if $FORMATTING_VERSION == 15 {
+					* Create a bold font
+					mata: bold_font = b.add_fontid()
+					mata: b.fontid_set_font(bold_font, "Calibri", 11, "black")
+					mata: b.fontid_set_font_bold(bold_font, "on" )
+					mata: b.fontid_set_font_italic(bold_font, "off" )  
+
+					mata assertlist_header = b.add_fmtid()
+					mata: b.fmtid_set_fontid(assertlist_header, bold_font)
+					mata: b.fmtid_set_fill_pattern(assertlist_header, "solid","lightgray")
+					mata: b.fmtid_set_horizontal_align(assertlist_header, "left")
+					mata: b.fmtid_set_text_wrap(assertlist_header, "on")
+					
+					mata: b.set_fmtid(1,(1,`col'),assertlist_header)
+					
+					forvalues i = 1/`col' {
+						mata format_width_`m`i'' = b.add_fmtid()
+						mata: b.fmtid_set_text_wrap(format_width_`m`i'', "on")
+						mata: b.fmtid_set_column_width(format_width_`m`i'',`i',`i', `m`i'')
+						mata: b.set_fmtid(2,`i',format_width_`m`i'')
+					}
+					
+					mata assertlist_all_others = b.add_fmtid()
+					mata: b.fmtid_set_text_wrap(assertlist_all_others, "on")
+					mata: b.set_fmtid((3,`row'),(1,`col'),assertlist_all_others)
+
+				}
+				if $FORMATTING_VERSION == 14 {
+				
+					forvalues i = 1/`col' {
+						mata: b.set_column_width(`i',`i', `m`i'')
+						mata: b.set_text_wrap((2,`row'),`i',"on")
+					}
+
+
+					mata: b.set_fill_pattern(1,(1,`col'),"solid","lightgray")
+					mata: b.set_font_bold(1,(1,`col'),"on")
+					mata: b.set_horizontal_align(1,(1,`col'),"left")
+				}
 				mata b.close_book()	
 			}
 		}
@@ -261,7 +305,7 @@ program define assertlist_export_ids_clean_up
 
 	qui {
 	    
-		syntax,  EXCEL(string asis) SHEET(string asis) [noFORMAT]
+		syntax,  EXCEL(string asis) SHEET(string asis) [FORMAT]
 	    
 		capture destring _al_number_assertions_failed, replace
 										
@@ -290,7 +334,7 @@ program define assertlist_export_ids_clean_up
 		foreach v of varlist* {
 								
 			mata: st_local("xlcolname", invtokens(numtobase26(`n')))
-			if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			if "`format'" != "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
 			else 	putexcel `xlcolname'1 = "``v''"
 			local ++n
 		}

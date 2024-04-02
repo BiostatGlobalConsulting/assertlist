@@ -12,7 +12,7 @@
 {marker syntax}{...}
 {title:Syntax}
 {p 8 16 2}
-{opt assertlist_export_ids}{cmd:,}   {it:{help assertlist_export_ids##excel:EXCEL}}(string) [{it:{help assertlist_export_ids##noformat:noFORMAT}}]
+{opt assertlist_export_ids}{cmd:,}   {it:{help assertlist_export_ids##excel:EXCEL}}(string) [{it:{help assertlist_export_ids##format:FORMAT}}]
 {p_end}
 
 {synoptline}
@@ -45,8 +45,9 @@
         {bf: path and file name. Do {it:NOT} include double quotes around the path and filename for output Excel file.}{p_end}
 
 {title:Optional Input} 
-{marker noformat}
-{pstd} {bf:noFORMAT} - {cmd:assertlist_export_ids} defaults to format columns with text, color and width options making the spreadsheet easy for the user to read. When {cmd:noformat} is specified all Excel formatting commands are ignored. 
+{marker format}
+{pstd} {bf:FORMAT} - {cmd:assertlist_export_ids} defaults to unformatted columns. 
+When {cmd:format} is specified the file will be formatted with text, color and width options making the spreadsheet easy for the user to read.
 This enables the user to run Stata faster and avoid potential Excel formatting errors due to large spreadsheets. 
 
 {title:Output}
