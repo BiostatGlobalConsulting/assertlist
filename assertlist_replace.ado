@@ -1,4 +1,4 @@
-*! assertlist_replace version 1.06 - Biostat Global Consulting - 2020-09-14
+*! assertlist_replace version 1.07 - Biostat Global Consulting - 2024-03-28
 * This program can be used after assertlist and assertlist_cleanup to pull the 
 * replace statements from the Excel file and put them in a .do file.
 
@@ -38,6 +38,8 @@
 *										Removed extra spaces in syntax written to .do file
 *										Added two lines of ** at the top of .do file and cleaned up some comments
 *										Cleaned up code to remove extra spaces
+* 2024-03-28	1.07	MK Trimner		Updated to align with changes made to assertlist
+* 										Put out to do file any rows without identifiers that will be ignored
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -94,7 +96,7 @@ program define assertlist_replace
 		* Open post file 
 		capture postclose mkt
 		capture erase fix
-		postfile mkt str100(sheet) float(sheetnum row varnum) str1000(tif trif assertion tag replacement varname) using fix, replace
+		postfile mkt str100(sheet) float(sheetnum row varnum) str1000(tif trif assertion tag replacement varname comment corrections) using fix, replace
 
 		* Go through each of the sheets to determine if they are fix
 		local cleanup 0
@@ -116,8 +118,7 @@ program define assertlist_replace
 						qui count if !missing(`v')
 						continue, break
 					}
-				}
-						
+				}						
 				* Cleanup so we are only looking at the relevant information
 				if `cleanup' == 1 assertlist_replace_cleanup, sheet(`sheet') sheetnum(`b') excel(`excel')
 			}
@@ -140,7 +141,7 @@ program define assertlist_replace
 			
 			* Add final save to .DO file
 			file write replacement "save, replace" _n
-			capture file close replacement
+			file close replacement
 		}
 		else noi di as error "No corrected values provided in spreadsheet."
 		
@@ -193,10 +194,11 @@ program assertlist_replace_cleanup
 				local ++4
 			}
 			
-			if "`v'"=="UserSpecifiedAdditionalInform" rename `v' _al_tag
-			if "`v'"=="AssertionSyntaxThatFailed" rename 	`v' _al_assertion_syntax
-			if "`v'"=="AssertionSequenceNumber" rename 		`v' _al_check_sequence
-			if "`v'"=="NumberofVariablesCheckedinA" rename 	`v' _al_num_var_checked
+			if "`v'"=="UserSpecifiedAdditionalInform" 	rename `v' _al_tag
+			if "`v'"=="AssertionSyntaxThatFailed" 		rename `v' _al_assertion_syntax
+			if "`v'"=="AssertionSequenceNumber"			rename `v' _al_check_sequence
+			if "`v'"=="NumberofVariablesCheckedinA" 	rename `v' _al_num_var_checked
+			if "`v'"=="ObservationNumberinDataset" 		rename `v' _al_obs_number
 		}
 				
 		* split up the rename local to execute each command
@@ -227,9 +229,88 @@ program assertlist_replace_cleanup
 		}
 		
 		if "`droplist'"=="" local droplist _al_original_* _al_var_type_*	
+		
+		************************************************************************
+		* Drop any rows that are missing all variables
+		local dropall
+		foreach v of varlist * {
+			local dropall `dropall' missing(`v') &
+		}
+		
+		local dropall = substr("`dropall'",1,length("`dropall'")-2)
+		drop if `dropall'
+		
+		************************************************************************
+		
+		* drop any rows that have a correctected value but do not include an identifying variable or variable name
+		
+		* Determine if they have any corrective values
+		local corrected_vars
+		local c 0
+		foreach var of varlist _al_correct_var_* {
+			local corrected_vars `corrected_vars' !missing(`var') |
+			local ++c
+			replace _al_num_var_checked = `c' if !missing(`var')
+		}
+		
+		
+		local corrected_vars = substr("`corrected_vars'",1,length("`corrected_vars'")-2)
+		gen have_corrected_value = `corrected_vars'
+		
+		
+		* Determine if do not have an id
+		local corrected_vars
+		foreach var in `idlist' {
+			local corrected_vars `corrected_vars' missing(`var') &
+		}
+		
+		local corrected_vars = substr("`corrected_vars'",1,length("`corrected_vars'")-2)
+		gen no_id = `corrected_vars' //if have_corrected_value == 1
+		
+		
+		* Determine if they do not have the variable name that should be corrected
+		local corrected_vars
+		forvalues var = 1/`c' {
+			local corrected_vars `corrected_vars' (missing(_al_var_`var') & !missing(_al_correct_var_`var')) |
+		}
+		
+		local corrected_vars = substr("`corrected_vars'",1,length("`corrected_vars'")-2)
+		gen no_var = `corrected_vars' //if have_corrected_value == 1
+
+		* Now we can put them into three different categories
+		* 1 have all the required variables
+		* 2 missing id 
+		* 3 missing var
+		* 4 missing id and var
+
+		gen status = 0 if have_corrected_value == 0
+		replace status = 1 if have_corrected_value == 1
+		replace status = 2 if missing(_al_check_sequence)
+		replace status = 3 if no_id == 1 & no_var != 1
+		replace status = 4 if no_var == 1  & no_id != 1
+		replace status = 5 if no_id == 1 & no_var == 1
+		label define status 0 "No Corrections" 1 " " 2 "* Not part of original assertion but have all required variables to make replacements" 3 "* Not part of original assertion: Missing ID variable" 4 "* Not part of original assertion: Missing variable name" 5 "* Not part of original assertion: Missing both ID and variable name", replace
+		label value status status	
+		
+		gen make_corrections = inlist(status,1,2)
+		label define make_corrections 0 "Cannot make corrections" 1 "Make corrections"
+		label value make_corrections make_corrections
+		
+		* Replace the var name with <ADD VAR NAME HERE> if missing but has corrected value
+		forvalues i = 1/`c' {
+			replace _al_var_`i' = "<ADD VAR NAME HERE>" if missing(_al_var_`i') & !missing(_al_correct_var_`i') & inlist(status,4,5)
+		}
+		
+		* Replace the ID list with <ADD ID AVLUE HERE> if missing but has corrected value
+		foreach v in `idlist' {
+			if "`=substr("`:type `v''",1,3)'"=="str"  replace `v' = "<ADD ID VALUE HERE>" if missing(`v') & inlist(status,3,5)
+		}
+				
+		drop have_corrected_value no_id no_var
+		
 		* Run subprogram to populate replace statements in dataset and excel file
 		assertlist_pop_replace_statement, idlist(`idlist') //sheet(`sheet') excel(`excel') 
-				
+	
 		* Drop variables not needed
 		capture drop `droplist'
 				
@@ -240,7 +321,7 @@ program assertlist_replace_cleanup
 			tostring _al_num_var_checked, replace
 			replace num_vars = num_vars + 1 if !missing(_al_correct_var_`i')
 		}
-	
+		
 		drop if num_vars == 0
 		drop num_vars
 		
@@ -259,7 +340,7 @@ program assertlist_replace_cleanup
 			* add a . if string value and missing
 			replace tif = subinstr(tif,"----","--.--",.) in `i'
 			replace tif = strtrim(tif) in `i'
-			
+		
 			forvalues n = 1/`=_al_num_var_checked[`i']' {
 				local tifvar `=_al_var_`n'[`i']' 
 				local tifvarval `=_al_correct_var_`n'[`i']'
@@ -267,8 +348,8 @@ program assertlist_replace_cleanup
 				if `"`=_al_replace_var_`n'[`i']'"' != "" ///
 					post mkt (`"`sheet'"') (`sheetnum') (`i') (`n') (`"`tifvar' `=tif[`i']'"') ///
 					(`"`tifvar' `tifvarval' `=tif[`i']'"') (`"`=_al_assertion_syntax[`i']'"') ///
-					(`"`=_al_tag[`i']'"') (`"`=_al_replace_var_`n'[`i']'"') (`"`=_al_var_`n'[`i']'"')
-			}		
+					(`"`=_al_tag[`i']'"') (`"`=_al_replace_var_`n'[`i']'"') (`"`=_al_var_`n'[`i']'"') (`"`: label status `=status[`i']''"')	((`"`: label make_corrections `=make_corrections[`i']''"'))
+			}
 		}
 	}
 	
@@ -364,24 +445,24 @@ program define assertlist_replace_conflict
 		compress
 		
 		* Create count of each `if clause' and replace statement
-		bysort tif: gen tifn=_N
-		bysort tif trif: gen trifn=_N
+		bysort tif: gen tifn=_N if corrections == "Make corrections"
+		bysort tif trif: gen trifn=_N if corrections == "Make corrections"
 		
 		* Create variable to show if there is a conflict between replace values
-		gen conflict= tifn!=trifn
+		gen conflict= tifn!=trifn if corrections == "Make corrections"
 		
 		* Create variable to show the number of conflicts
-		bysort tif: gen num_conflict=_n if conflict==1
+		bysort tif: gen num_conflict=_n if conflict==1 & corrections == "Make corrections"
 		
 		* Create variable to show if duplicate
-		gen duplicate=tifn==trifn if tifn > 1
+		gen duplicate=tifn==trifn if tifn > 1 & corrections == "Make corrections"
 		
-		gen comment=""
+		*gen comment=""
 		forvalues i = 1/`=_N' {
 			replace comment = "* Duplicate: Replace statement shows up `=tifn[`i']' times in file." if duplicate==1  in `i'
 			replace comment = "* Conflict: Replace statement shows up `=tifn[`i']' times, with 2+ replacement values." if conflict==1 	  in `i'
 		}
-		save "fix", replace
+		save "fix", replace		
 	}	
 end
 
@@ -397,12 +478,14 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 							DATE(string asis) REVIEWER(string asis) ///
 							DATASET1(string asis) DATASET2(string asis) ]
 							
+							
 	noi di as text "Creating `dofile'.do file..."
 
 	* Set local with file name
 	local files replacement
 								
 	* Open .DO file
+	capture file close replacement
 	file open replacement using `dofile'.do, text write replace
 	file write replacement "********************************************************************************" _n
 	file write replacement "********************************************************************************" _n
@@ -470,9 +553,18 @@ syntax , EXCEL(string asis) [ DOfile(string asis) COMMENTS(string asis) ///
 			if `c' == 1 file write replacement "* There is `c' set of conflicting replace statements at the bottom of this .do file." _n
 			else file write replacement "* There are `c' sets of conflicting replace statements at the bottom of this .do file." _n
 			
+			* grab count of all those that could not be replaced
+			qui count if missing(tifn)
+			local no_corrections = r(N)
+			if `no_corrections' > 0 {
+				file write replacement "* There are `no_corrections' corrected values that could not be used because all the required information was not provided."_n
+				file write replacement " " _n
+			}
 			file write replacement "* Review each line and uncomment the replace statement with the correct value." _n
-		}
 			
+		}
+		
+								
 		file write replacement " " _n
 		
 		* Pass through the number of conflicts
@@ -517,32 +609,44 @@ program assertlist_replace_commands
 			file write replacement " " _n
 			
 			* And By assertion
-			levelsof assertion, local(g)
+			levelsof assertion, local(g) missing
 			tempfile data
 			save "`data'", replace
 			foreach v in `g' {
 				use "`data'", clear
 				
 				keep if assertion==`"`v'"'
-
+				sort corrections comment
+				qui count if missing(assertion) &  corrections == "Cannot make corrections" 
+				local no = `r(N)'
+				if `no' > 0 {
+					file write replacement "********************************************************************************" _n
+					file write replacement `"* `r(N)' corrected values could not be used because not all the required information was provided: "' _n		
+					file write replacement " " _n
+				}
+				
 				local tag 
 				if !inlist("`=tag[1]'","",".")  local tag / Tag: `=tag[1]'
-			
+				
 				qui count 
 				if `=r(N)' > 0 {
-					file write replacement "* Replacements made because:" _n
-					file write replacement "* Failed assertion: `=assertion[1]' `tag'  " _n
-								
+					if !missing(assertion) file write replacement "* Replacements made because:" _n
+					if !missing(assertion) file write replacement "* Failed assertion: `=assertion[1]' `tag'  " _n
+									
 					forvalues i = 1/`=_N' {
 						if "`=comment[`i']'"!="" file write replacement `"`=comment[`i']'"' _n
-						file write replacement `"`=replacement[`i']'"' _n
+						if "`=corrections[`i']'"!="Cannot make corrections" & missing(assertion) file write replacement "* Replacements made because: <ADD REASON HERE>" _n
+						if "`=corrections[`i']'"!="Cannot make corrections" file write replacement `"`=replacement[`i']'"' _n
+						if "`=corrections[`i']'"=="Cannot make corrections" file write replacement `"* `=replacement[`i']'"' _n
+		
 						file write replacement " " _n	
 					}
 				}
 			}
+			
 			restore
 		}
-		
+
 		* Now write out all the conflicts
 		if `num'>=1 {
 			use "fix", clear

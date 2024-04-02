@@ -1,4 +1,4 @@
-*! assertlist_cleanup version 1.15 - Biostat Global Consulting - 2022-03-14
+*! assertlist_cleanup version 1.16 - Biostat Global Consulting - 2023-01-29
 
 * This program can be used after assertlist to cleanup the column
 * names and make them more user friendly
@@ -42,6 +42,8 @@
 * 2020-09-09			MK Trimner		Removed Completed from sequence number	
 * 2021-03-31	1.15	MK Trimner		Added noFormat option to allow Stata to run faster and avoid Excel formatting errors due to large size
 * 2022-03-14	1.16	MK Trimner		Added txtwrap option to the rows in the failed assertion tabs 	
+* 2023-01-31	1.17	MK Trimner		Changed the noFORMAT option to be FORMAT. the default will now be to not format. 
+*										Added fmtids when using stata version >= 15
 *******************************************************************************
 *
 * Contact Dale Rhoda (Dale.Rhoda@biostatglobal.com) with comments & suggestions.
@@ -49,7 +51,7 @@
 
 program define assertlist_cleanup
 
-	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT noFORMAT]
+	syntax  , EXCEL(string asis) [ NAME(string asis) IDSORT FORMAT]
 
 	noi di as text "Confirming excel file exists..."
 	
@@ -152,7 +154,7 @@ program define assertlist_cleanup
 				}
 				
 			* Format header row for each tab
-			if "`format'" == "" assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
+			if "`format'" != "" assertlist_cleanup_format_header, excel(`excel') sheet(`sheet') ///
 				passthrough(`passthrough') hide(`hide') 
 			
 			}
@@ -170,7 +172,7 @@ end
 capture program drop assertlist_cleanup_idsort
 program define assertlist_cleanup_idsort
 
-	syntax, EXCEL(string asis) SHEET(string asis) MAX(int) START(int) [noFORMAT]
+	syntax, EXCEL(string asis) SHEET(string asis) MAX(int) START(int) [FORMAT]
 
 	noi di as text "Sort sheet by ID Variables..."
 
@@ -215,7 +217,7 @@ capture program drop assertlist_cleanup_rename
 program define assertlist_cleanup_rename
 
 syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
-			PASSTHROUGH(string asis) HIDE(string asis) ROWS(int) [noFORMAT]
+			PASSTHROUGH(string asis) HIDE(string asis) ROWS(int) [FORMAT]
 	qui {
 
 		local v `var'
@@ -278,7 +280,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) N(int) MAX(int) VAR(varlist) ///
 		putexcel set "`excel'.xlsx", modify sheet("`sheet'") 
 
 		mata: st_local("xlcolname", invtokens(numtobase26(``v'n')))
-		if "`format'" == "" {
+		if "`format'" != "" {
 			putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
 			putexcel `xlcolname'2:`xlcolname'`rows' , txtwrap
 		}
@@ -336,18 +338,65 @@ program define assertlist_cleanup_format_header
 			local ++i
 		}
 		
-		forvalues i = 1/`m_v' {
-			* Set column width
-			local width = max(`=`m`i'1'+3',10)
-			if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
-			if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
-			mata: b.set_column_width(`i',`i',`=min(30,`width')')
-		}
 		
-		foreach l in `=substr("`hide'",3,.)' {
-			mata: b.set_column_width(`l',`l',0)
-		}
+		if $FORMATTING_VERSION == 15 {
+			* Create a bold font
+			mata: bold_font = b.add_fontid()
+			mata: b.fontid_set_font(bold_font, "Calibri", 11, "black")
+			mata: b.fontid_set_font_bold(bold_font, "on" )
+			mata: b.fontid_set_font_italic(bold_font, "off" )  
+
+			mata assertlist_header = b.add_fmtid()
+			mata: b.fmtid_set_fontid(assertlist_header, bold_font)
+			mata: b.fmtid_set_fill_pattern(assertlist_header, "solid","lightgray")
+			mata: b.fmtid_set_horizontal_align(assertlist_header, "left")
+			mata: b.fmtid_set_text_wrap(assertlist_header, "on")
+			
+			mata: b.set_fmtid(1,(1,`m_v'),assertlist_header)
+			
+			forvalues i = 1/`m_v' {
+				local width = max(`=`m`i'1'+3',10)
+				if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
+				if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
+				*mata: b.set_column_width(`i',`i',`=min(30,`width')')
+
+				local cw `=min(30,`width')'
+				
+				mata format_width_`cw' = b.add_fmtid()
+				mata: b.fmtid_set_text_wrap(format_width_`cw'', "on")
+				mata: b.fmtid_set_column_width(format_width_`cw',`i',`i', `cw')
+				mata: b.set_fmtid(2,`i',format_width_`cw')
+
+			}
+			
+			mata assertlist_all_others = b.add_fmtid()
+			mata: b.fmtid_set_text_wrap(assertlist_all_others, "on")
+			mata: b.set_fmtid((3,`=`r_v'+1'),(1,`m_v'),assertlist_all_others)
 		
+			foreach l in `=substr("`hide'",3,.)' {	
+				mata format_hide_`l' = b.add_fmtid()
+				mata: b.fmtid_set_column_width(format_hide_`l',`l',`l',0)
+
+				mata: b.set_fmtid(`l',`l',format_hide_`l')
+			}
+
+
+		}
+		if $FORMATTING_VERSION == 14 {
+		
+			forvalues i = 1/`m_v' {
+				* Set column width
+				local width = max(`=`m`i'1'+3',10)
+				if `m`i'2' - `m`i'1' > 5 local width `=`m`i'1'+ 11'
+				if `m`i'2' - `m`i'1' > 15 local width `=`m`i'1'+ 14'
+				mata: b.set_column_width(`i',`i',`=min(30,`width')')
+			}
+			foreach l in `=substr("`hide'",3,.)' {
+				mata: b.set_column_width(`l',`l',0)
+			}
+
+		}
+
 		* Set the row height 
 		mata: b.set_row_height(1,1,80)
 		
@@ -364,7 +413,7 @@ end
 capture program drop assertlist_cleanup_id_tab
 program define assertlist_cleanup_id_tab
 
-syntax  , EXCEL(string asis) SHEET(string asis) [noFORMAT]
+syntax  , EXCEL(string asis) SHEET(string asis) [FORMAT]
 
 	qui {
 	    
@@ -400,7 +449,7 @@ syntax  , EXCEL(string asis) SHEET(string asis) [noFORMAT]
 		foreach v of varlist* {
 		    			
 		   	mata: st_local("xlcolname", invtokens(numtobase26(`n')))
-			if "`format'" == "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
+			if "`format'" != "" putexcel `xlcolname'1 = "``v''", txtwrap bold left fpattern("solid", "lightgray")
 			else putexcel `xlcolname'1 = "``v''"
 			local ++n
 		}
